@@ -44,7 +44,7 @@ import {
 } from "../../drizzle/schema";
 import { requireDb } from "../db";
 import { requireAccess, requireTerritoryAccess } from "../access";
-import { amountsMatch, nextObligationState, receiptIntegrityHash, syncConflictResolutionPlan, syncReplayDisposition } from "../domainRules";
+import { amountsMatch, isPaymentEligibleForDeposit, nextObligationState, receiptIntegrityHash, syncConflictResolutionPlan, syncReplayDisposition } from "../domainRules";
 import { requireAdmin, requireMunicipality } from "../policies";
 import { protectedProcedure, router } from "../_core/trpc";
 
@@ -407,11 +407,21 @@ export const municipalRouter = router({
 
   deposits: router({
     list: protectedProcedure.query(async ({ ctx }) => { const municipalityId = await requireAccess(ctx.user, "deposits", "read"); const db = await requireDb(); return db.select().from(deposits).where(eq(deposits.municipalityId, municipalityId)).orderBy(desc(deposits.createdAt)).limit(100); }),
+    eligiblePayments: protectedProcedure.query(async ({ ctx }) => {
+      const municipalityId = await requireAccess(ctx.user, "deposits", "create"); const db = await requireDb();
+      return db.select({ payment: paymentTransactions, taxpayer: taxpayers }).from(paymentTransactions)
+        .leftJoin(taxpayers, eq(paymentTransactions.taxpayerId, taxpayers.id))
+        .leftJoin(depositItems, eq(depositItems.paymentTransactionId, paymentTransactions.id))
+        .where(and(eq(paymentTransactions.municipalityId, municipalityId), eq(paymentTransactions.collectedBy, ctx.user.id), eq(paymentTransactions.status, "VALIDATED"), isNull(depositItems.id)))
+        .orderBy(desc(paymentTransactions.collectedAt)).limit(100);
+    }),
     declare: protectedProcedure.input(z.object({ paymentIds: z.array(z.string().uuid()).min(1), depositedAmount: money, observation: z.string().trim().max(1000).optional() })).mutation(async ({ ctx, input }) => {
       const municipalityId = await requireAccess(ctx.user, "deposits", "create"); const db = await requireDb(); const id = randomUUID();
-      const paymentRows = await db.select().from(paymentTransactions).where(and(eq(paymentTransactions.municipalityId, municipalityId), eq(paymentTransactions.collectedBy, ctx.user.id), inArray(paymentTransactions.id, input.paymentIds), eq(paymentTransactions.status, "VALIDATED")));
-      if (paymentRows.length !== input.paymentIds.length) throw new TRPCError({ code: "BAD_REQUEST", message: "Les paiements déclarés doivent appartenir à l’agent et être validés." });
-      const expectedAmount = paymentRows.reduce((sum, row) => sum + Number(row.netAmount), 0); const differenceAmount = input.depositedAmount - expectedAmount;
+      const selected = await db.select({ payment: paymentTransactions, depositItemId: depositItems.id }).from(paymentTransactions).leftJoin(depositItems, eq(depositItems.paymentTransactionId, paymentTransactions.id)).where(and(eq(paymentTransactions.municipalityId, municipalityId), inArray(paymentTransactions.id, input.paymentIds)));
+      const isUniqueSelection = new Set(input.paymentIds).size === input.paymentIds.length;
+      const ineligible = selected.find(row => !isPaymentEligibleForDeposit({ status: row.payment.status, collectedBy: row.payment.collectedBy, actorId: ctx.user.id, alreadyAssigned: Boolean(row.depositItemId) }));
+      if (!isUniqueSelection || selected.length !== input.paymentIds.length || ineligible) throw new TRPCError({ code: "CONFLICT", message: "Chaque encaissement doit être validé, appartenir à l’agent et ne pas déjà figurer dans un versement." });
+      const paymentRows = selected.map(row => row.payment); const expectedAmount = paymentRows.reduce((sum, row) => sum + Number(row.netAmount), 0); const differenceAmount = input.depositedAmount - expectedAmount;
       await db.transaction(async tx => { await tx.insert(deposits).values({ id, municipalityId, reference: reference("VER"), agentId: ctx.user.id, expectedAmount: moneyValue(expectedAmount), depositedAmount: moneyValue(input.depositedAmount), differenceAmount: moneyValue(differenceAmount), status: "SUBMITTED", submittedAt: new Date(), observation: input.observation }); await tx.insert(depositItems).values(paymentRows.map(payment => ({ depositId: id, paymentTransactionId: payment.id }))); await tx.insert(auditLogs).values({ municipalityId, actorId: ctx.user.id, action: "DECLARE", module: "deposits", entityType: "deposit", entityId: id, afterValue: { paymentIds: input.paymentIds, expectedAmount, depositedAmount: input.depositedAmount } }); });
       return { id, differenceAmount };
     }),

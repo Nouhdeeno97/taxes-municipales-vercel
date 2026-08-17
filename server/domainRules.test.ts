@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { amountsMatch, nextObligationState, receiptIntegrityHash, receiptIntegrityMatches, sumsMatch, syncConflictResolutionPlan, syncReplayDisposition } from "./domainRules";
+import { amountsMatch, isPaymentEligibleForDeposit, nextObligationState, receiptIntegrityHash, receiptIntegrityMatches, sumsMatch, syncConflictResolutionPlan, syncReplayDisposition } from "./domainRules";
 
 describe("règles d’encaissement", () => {
   it("tolère uniquement l’écart d’arrondi prévu entre allocations et obligations", () => {
@@ -11,6 +11,13 @@ describe("règles d’encaissement", () => {
   it("fait évoluer une obligation sans montant négatif", () => {
     expect(nextObligationState(1000, 400)).toEqual({ remaining: 600, status: "PARTIALLY_PAID" });
     expect(nextObligationState(1000, 1500)).toEqual({ remaining: 0, status: "PAID" });
+  });
+
+  it("n’autorise un versement que pour un encaissement validé, détenu par l’agent et non déjà rapproché", () => {
+    expect(isPaymentEligibleForDeposit({ status: "VALIDATED", collectedBy: 7, actorId: 7, alreadyAssigned: false })).toBe(true);
+    expect(isPaymentEligibleForDeposit({ status: "VALIDATED", collectedBy: 7, actorId: 7, alreadyAssigned: true })).toBe(false);
+    expect(isPaymentEligibleForDeposit({ status: "VALIDATED", collectedBy: 8, actorId: 7, alreadyAssigned: false })).toBe(false);
+    expect(isPaymentEligibleForDeposit({ status: "CANCELLED", collectedBy: 7, actorId: 7, alreadyAssigned: false })).toBe(false);
   });
 
   it("détecte toute altération d’un reçu définitif", () => {

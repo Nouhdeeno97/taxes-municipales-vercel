@@ -15,6 +15,13 @@
       "when": 1786989610632,
       "tag": "0001_left_wild_child",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1786995266987,
+      "tag": "0002_tan_brother_voodoo",
+      "breakpoints": true
     }
   ]
 }

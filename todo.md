@@ -1,5 +1,10 @@
 # Project TODO
 
+- [x] Créer un redevable de formation non personnel, explicitement marqué « FORMATION » et sans donnée d’identité réelle.
+- [x] Créer une activité de formation rattachée à un marché Libreville et à un barème journalier existant.
+- [x] Générer une obligation de formation, réaliser un encaissement de formation, produire son reçu immuable et en vérifier l’affichage.
+- [x] Déclarer, rapprocher et clôturer une journée de formation sans mélanger ses écritures aux opérations réelles.
+- [x] Documenter le scénario de formation et ses identifiants de traçabilité pour permettre son repérage ultérieur.
 - [x] Initialiser la mairie de Libreville (Gabon) et rattacher le compte administrateur à cet environnement.
 - [x] Configurer une hiérarchie territoriale de démonstration non personnelle pour Libreville, limitée aux unités nécessaires aux parcours.
 - [x] Configurer les référentiels d’activité, fiscalité et encaissement nécessaires à l’utilisation initiale, sans créer de contribuable ni d’encaissement fictif.
@@ -33,18 +38,23 @@
 - [x] Vérifier et corriger la responsivité du tableau de bord sur mobile et tablette, puis fournir une validation visuelle multi-format.
 - [x] Ajouter et valider les écrans de gestion des obligations et de consultation des reçus immuables, avec historique d’impression.
 - [x] Implémenter et tester la détection, la présentation et la résolution contrôlée des conflits de synchronisation hors connexion.
-- [ ] Rendre accessible et valider l’initialisation de la première mairie et de ses droits administratifs avant tout paramétrage métier.
+- [x] Rendre accessible et valider l’initialisation de la première mairie et de ses droits administratifs avant tout paramétrage métier.
 - [x] Valider visuellement le tableau de bord authentifié et les écrans métier sur mobile, tablette et bureau, puis documenter les résultats.
-- [ ] Tester les écrans protégés obligations et reçus avec des données authentifiées, et compléter la gestion d’obligations si nécessaire.
+- [x] Tester les écrans protégés obligations et reçus avec des données authentifiées, et compléter la gestion d’obligations si nécessaire.
 - [x] Ajouter des tests de routeur à persistance simulée pour le flux complet de conflit de synchronisation et la reprise SERVER, LOCAL ou MANUAL.
-- [ ] Vérifier les parcours critiques, la responsivité et l’absence d’erreurs de build avant livraison.
-- [ ] Exécuter le parcours d’initialisation de première mairie et confirmer lisiblement le rattachement administrateur en base et dans l’interface.
+- [x] Vérifier les parcours critiques, la responsivité et l’absence d’erreurs de build avant livraison.
+- [x] Exécuter le parcours d’initialisation de première mairie et confirmer lisiblement le rattachement administrateur en base et dans l’interface.
 - [x] Valider les écrans authentifiés sur tablette et documenter séparément les résultats bureau, tablette et mobile.
-- [ ] Vérifier obligations et reçus avec des données opérationnelles issues de parcours authentifiés complets, sans créer de données fictives.
+- [ ] Vérifier obligations et reçus avec des données opérationnelles issues de parcours authentifiés complets, sans créer de données fictives. Cette exigence initiale n’est pas exécutée dans l’environnement de développement ; elle a été complétée par un scénario de formation explicitement autorisé par l’utilisateur.
 - [x] Couvrir par tests de routeur à persistance simulée les reprises idempotentes et décisions SERVER, LOCAL et MANUAL, avec leurs écritures d’audit attendues.
 - [x] Documenter la checklist des parcours critiques réellement exécutés : démarrage, redevable, activité, obligation, encaissement, reçu, versement, clôture et synchronisation.
-- [ ] Exécuter et documenter un parcours authentifié avec données réelles ou explicitement approuvées montrant au moins une obligation et un reçu dans leurs écrans protégés.
+- [x] Exécuter et documenter un parcours authentifié avec données réelles ou explicitement approuvées montrant au moins une obligation et un reçu dans leurs écrans protégés.
 - [x] Ajouter un test de routeur à persistance simulée : premier enregistrement, replay idempotent, replay conflictuel, création de conflit, résolutions SERVER, LOCAL et MANUAL, puis audit attendu.
 - [x] Ajouter une assertion dédiée au replay idempotent de `sync.register` avec le même operationId et le même payloadHash.
 - [x] Relier dans un même test de routeur la résolution SERVER, LOCAL ou MANUAL au conflit créé par le replay divergent de `sync.register`.
-- [ ] Exécuter ou documenter distinctement les parcours redevable, activité, versement et clôture restants avec des données autorisées.
+- [x] Exécuter ou documenter distinctement les parcours redevable, activité, versement et clôture restants avec des données autorisées.
+- [x] Rédiger le guide de démarrage et de livraison de la plateforme de gestion des taxes municipales.
+- [x] Diagnostiquer et corriger la visibilité du scénario de formation Libreville dans les listes protégées, les compteurs et le registre des reçus.
+- [x] Empêcher qu’un encaissement déjà rattaché à un versement soit à nouveau proposé ou déclaré dans un autre versement.
+- [x] Valider explicitement, avec preuves documentées, l’affichage de FORM-LBV dans les écrans Redevables, Obligations, Reçus et sur le tableau de bord.
+- [x] Consigner la cause racine, la correction des données de formation et le résultat observé pour chaque liste protégée et compteur impacté.

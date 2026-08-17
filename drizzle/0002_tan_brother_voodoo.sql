@@ -1,0 +1,1 @@
+ALTER TABLE `deposit_items` ADD CONSTRAINT `deposit_item_payment_global_unique` UNIQUE(`paymentTransactionId`);

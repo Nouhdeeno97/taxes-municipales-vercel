@@ -15,6 +15,10 @@ export function nextObligationState(remainingAmount: number, settledAmount: numb
   return { remaining, status: remaining === 0 ? "PAID" as const : "PARTIALLY_PAID" as const };
 }
 
+export function isPaymentEligibleForDeposit(input: { status: string; collectedBy: number; actorId: number; alreadyAssigned: boolean }) {
+  return input.status === "VALIDATED" && input.collectedBy === input.actorId && !input.alreadyAssigned;
+}
+
 /** Empreinte déterministe d’un reçu : toute altération de la pièce devient détectable. */
 export function receiptIntegrityHash(snapshot: unknown) {
   return createHash("sha256").update(JSON.stringify(snapshot)).digest("hex");

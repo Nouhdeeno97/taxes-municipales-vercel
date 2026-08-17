@@ -442,7 +442,10 @@ export const depositItems = mysqlTable("deposit_items", {
   status: mysqlEnum("status", ["PENDING", "ACCEPTED", "REJECTED"]).notNull().default("PENDING"),
   rejectionReason: text("rejectionReason"),
   createdAt: createdAt(),
-}, table => [uniqueIndex("deposit_payment_unique").on(table.depositId, table.paymentTransactionId)]);
+}, table => [
+  uniqueIndex("deposit_payment_unique").on(table.depositId, table.paymentTransactionId),
+  uniqueIndex("deposit_item_payment_global_unique").on(table.paymentTransactionId),
+]);
 
 export const cashCounts = mysqlTable("cash_counts", {
   id: uuid().primaryKey(),
