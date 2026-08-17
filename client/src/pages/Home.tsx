@@ -1,33 +1,20 @@
-import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
-import { Streamdown } from 'streamdown';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { trpc } from "@/lib/trpc";
+import { Banknote, FileText, RefreshCw, UsersRound, WalletCards } from "lucide-react";
+import { FormEvent } from "react";
+import { toast } from "sonner";
+import { money } from "./MunicipalPages";
 
-/**
- * All content in this page are only for example, replace with your own feature implementation
- * When building pages, remember your instructions in Frontend Workflow, Frontend Best Practices, Design Guide and Common Pitfalls
- */
 export default function Home() {
-  // The useAuth hook provides authentication state.
-  // To implement login/logout, call logout(), or start login from an event
-  // handler: onClick={() => startLogin()} (imported from "@/const"). Never call
-  // startLogin() during render (no href={startLogin()}) — it mints a one-time
-  // nonce cookie and must run only at the moment of navigation.
-  let { user, loading, error, isAuthenticated, logout } = useAuth();
-
-  // If theme is switchable in App.tsx, we can implement theme toggling like this:
-  // const { theme, toggleTheme } = useTheme();
-
-  return (
-    <div className="min-h-screen flex flex-col">
-      <main>
-        {/* Example: lucide-react for icons */}
-        <Loader2 className="animate-spin" />
-        Example Page
-        {/* Example: Streamdown for markdown rendering */}
-        <Streamdown>Any **markdown** content</Streamdown>
-        <Button variant="default">Example Button</Button>
-      </main>
-    </div>
-  );
+  const dashboard = trpc.municipal.dashboard.useQuery(); const utils = trpc.useUtils();
+  const bootstrap = trpc.municipal.bootstrap.useMutation({ onSuccess: () => { toast.success("Mairie configurée."); utils.auth.me.invalidate(); utils.municipal.dashboard.invalidate(); }, onError: error => toast.error(error.message) });
+  const submit = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); const data = new FormData(event.currentTarget); bootstrap.mutate({ code: String(data.get("code")), name: String(data.get("name")) }); };
+  if (dashboard.error) return <div className="mx-auto max-w-2xl"><p className="text-xs font-bold uppercase tracking-[.17em] text-[#ad6a1d]">Mise en service</p><h1 className="mt-2 text-3xl font-semibold text-[#173931]">Configurez la mairie</h1><p className="mt-2 text-sm leading-6 text-slate-600">Avant toute collecte, rattachez votre espace administratif à une mairie. Cette opération est réservée au compte administrateur initial.</p><Card className="mt-6 border-[#dce8e3]"><CardHeader><CardTitle>Identité municipale</CardTitle><CardDescription>Le code sert de référence interne et ne pourra pas être réutilisé dans la même plateforme.</CardDescription></CardHeader><CardContent><form onSubmit={submit} className="grid gap-4 md:grid-cols-3"><div><Label htmlFor="code">Code mairie</Label><Input id="code" name="code" placeholder="MAI-001" required /></div><div className="md:col-span-2"><Label htmlFor="name">Nom de la mairie</Label><Input id="name" name="name" placeholder="Mairie de…" required /></div><div className="md:col-span-3"><Button type="submit" disabled={bootstrap.isPending} className="bg-[#0f5a4e] hover:bg-[#0b493e]">{bootstrap.isPending ? "Configuration…" : "Initialiser la mairie"}</Button></div></form></CardContent></Card></div>;
+  const cards = [{ label: "Redevables actifs", value: dashboard.data?.taxpayers ?? 0, icon: UsersRound, tone: "bg-[#edf5f1] text-[#0f5a4e]" }, { label: "Obligations à suivre", value: dashboard.data?.dueObligations ?? 0, icon: FileText, tone: "bg-[#fff3df] text-[#ad6a1d]" }, { label: "Recettes du jour", value: money(dashboard.data?.receiptsToday), icon: Banknote, tone: "bg-[#eaf0fa] text-[#335fa8]" }, { label: "Synchronisations à traiter", value: dashboard.data?.pendingSync ?? 0, icon: RefreshCw, tone: "bg-[#f9eaf0] text-[#9c3b60]" }];
+  return <><div className="mb-7 flex flex-col justify-between gap-4 lg:flex-row lg:items-end"><div><p className="text-xs font-bold uppercase tracking-[.17em] text-[#ad6a1d]">Vue opérationnelle</p><h1 className="mt-2 text-3xl font-semibold tracking-tight text-[#173931]">Pilotage de la collecte</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Suivez les opérations de terrain, les obligations fiscales et les contrôles de caisse depuis un seul espace municipal.</p></div><div className="flex items-center gap-2 rounded-2xl border border-[#dce8e3] bg-white px-4 py-3 text-sm"><WalletCards className="size-4 text-[#0f5a4e]" /><span className="text-slate-600">Versements déclarés : </span><strong className="text-[#173931]">{money(dashboard.data?.declared)}</strong></div></div>
+  <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{cards.map(card => <Card key={card.label} className="border-[#dce8e3] shadow-sm"><CardContent className="p-5"><div className="flex items-start justify-between"><p className="text-xs font-bold uppercase tracking-[.13em] text-slate-500">{card.label}</p><span className={`grid size-9 place-items-center rounded-xl ${card.tone}`}><card.icon className="size-4" /></span></div><p className="mt-5 text-3xl font-semibold tracking-tight text-[#173931]">{dashboard.isLoading ? "—" : card.value}</p></CardContent></Card>)}</section>
+  <section className="mt-6 grid gap-5 lg:grid-cols-[1.5fr,1fr]"><Card className="border-[#dce8e3]"><CardHeader><CardTitle>Contrôle du cycle quotidien</CardTitle><CardDescription>La collecte validée doit être déclarée, rapprochée et clôturée avec les écarts documentés.</CardDescription></CardHeader><CardContent><div className="grid gap-3 sm:grid-cols-3"><div className="rounded-xl bg-[#edf5f1] p-4"><p className="text-xs font-bold uppercase tracking-[.12em] text-[#437368]">1. Collecter</p><p className="mt-2 text-sm font-medium text-[#173931]">Paiement multi-obligations et modes mixtes</p></div><div className="rounded-xl bg-[#fff3df] p-4"><p className="text-xs font-bold uppercase tracking-[.12em] text-[#8c5d20]">2. Verser</p><p className="mt-2 text-sm font-medium text-[#173931]">Déclaration et comptage de caisse</p></div><div className="rounded-xl bg-[#eaf0fa] p-4"><p className="text-xs font-bold uppercase tracking-[.12em] text-[#45699e]">3. Clôturer</p><p className="mt-2 text-sm font-medium text-[#173931]">Validation et suivi des écarts</p></div></div></CardContent></Card><Card className="border-[#dce8e3] bg-[#143d35] text-white"><CardHeader><CardTitle className="text-white">Garanties métier</CardTitle><CardDescription className="text-[#b7d3c8]">Règles non négociables implémentées dans le modèle et les services.</CardDescription></CardHeader><CardContent className="space-y-3 text-sm text-[#e3f0ea]"><p>• Reçus finalisés avec instantané et empreinte d’intégrité.</p><p>• Fusions de redevables journalisées et sans effacement d’historique.</p><p>• Synchronisation idempotente à partir d’un identifiant d’opération par appareil.</p></CardContent></Card></section></>;
 }

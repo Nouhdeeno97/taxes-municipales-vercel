@@ -1,0 +1,483 @@
+import { TRPCError } from "@trpc/server";
+import { and, desc, eq, gte, inArray, isNull, like, lte, or, sql } from "drizzle-orm";
+import { randomUUID } from "crypto";
+import { z } from "zod";
+import {
+  activities,
+  activityCategories,
+  activityOwnerships,
+  activityTaxAssignments,
+  activityTypes,
+  auditLogs,
+  cashCounts,
+  dailyClosings,
+  depositItems,
+  deposits,
+  marketLocations,
+  markets,
+  municipalities,
+  paymentAllocations,
+  paymentItems,
+  paymentMethods,
+  paymentTransactions,
+  permissions,
+  receiptPrintHistory,
+  receipts,
+  rolePermissions,
+  roles,
+  sectors,
+  syncConflicts,
+  syncOperations,
+  taxObligations,
+  taxCategories,
+  taxExemptions,
+  taxPeriodicities,
+  taxRuleScopes,
+  taxRules,
+  taxTypes,
+  taxpayers,
+  taxpayerMerges,
+  userRoles,
+  userTerritoryAssignments,
+  users,
+  zones,
+} from "../../drizzle/schema";
+import { requireDb } from "../db";
+import { requireAccess, requireTerritoryAccess } from "../access";
+import { amountsMatch, nextObligationState, receiptIntegrityHash, syncConflictResolutionPlan, syncReplayDisposition } from "../domainRules";
+import { requireAdmin, requireMunicipality } from "../policies";
+import { protectedProcedure, router } from "../_core/trpc";
+
+const money = z.number().finite().positive().max(1_000_000_000);
+const moneyValue = (value: number) => value.toFixed(2);
+const reference = (prefix: string) => `${prefix}-${new Date().getFullYear()}-${randomUUID().slice(0, 8).toUpperCase()}`;
+
+async function audit(
+  db: Awaited<ReturnType<typeof requireDb>>,
+  event: { municipalityId: string; actorId: number; action: string; module: string; entityType: string; entityId: string; beforeValue?: unknown; afterValue?: unknown; deviceId?: string },
+) {
+  await db.insert(auditLogs).values({
+    municipalityId: event.municipalityId,
+    actorId: event.actorId,
+    action: event.action,
+    module: event.module,
+    entityType: event.entityType,
+    entityId: event.entityId,
+    beforeValue: event.beforeValue,
+    afterValue: event.afterValue,
+    deviceId: event.deviceId,
+  });
+}
+
+function mustGet<T>(value: T | undefined, message: string): T {
+  if (!value) throw new TRPCError({ code: "NOT_FOUND", message });
+  return value;
+}
+
+const taxpayerInput = z.object({
+  type: z.enum(["PERSON", "COMPANY"]),
+  firstName: z.string().trim().max(120).optional(),
+  lastName: z.string().trim().max(120).optional(),
+  legalName: z.string().trim().max(220).optional(),
+  nationalId: z.string().trim().max(96).optional(),
+  taxId: z.string().trim().max(96).optional(),
+});
+
+export const municipalRouter = router({
+  bootstrap: protectedProcedure
+    .input(z.object({ code: z.string().trim().min(2).max(32), name: z.string().trim().min(3).max(180) }))
+    .mutation(async ({ ctx, input }) => {
+      requireAdmin(ctx.user);
+      const db = await requireDb();
+      if (ctx.user.municipalityId) {
+        throw new TRPCError({ code: "CONFLICT", message: "Ce compte est déjà rattaché à une mairie." });
+      }
+      const municipalityId = randomUUID();
+      await db.insert(municipalities).values({ id: municipalityId, code: input.code.toUpperCase(), name: input.name });
+      await db.update(users).set({ municipalityId }).where(eq(users.id, ctx.user.id));
+      const roleId = randomUUID(); const permissionId = randomUUID();
+      await db.insert(roles).values({ id: roleId, municipalityId, code: "ADMINISTRATEUR", label: "Administrateur municipal", isSystem: true });
+      await db.insert(permissions).values({ id: permissionId, code: `municipality:${municipalityId}:all`, module: "*", action: "*", label: "Accès complet de l’administrateur municipal" });
+      await db.insert(rolePermissions).values({ id: randomUUID(), roleId, permissionId });
+      await db.insert(userRoles).values({ id: randomUUID(), userId: ctx.user.id, roleId, assignedBy: ctx.user.id });
+      await audit(db, { municipalityId, actorId: ctx.user.id, action: "CREATE", module: "administration", entityType: "municipality", entityId: municipalityId, afterValue: input });
+      return { id: municipalityId, code: input.code.toUpperCase(), name: input.name };
+    }),
+
+  dashboard: protectedProcedure.query(async ({ ctx }) => {
+    const municipalityId = await requireAccess(ctx.user, "dashboard", "read");
+    const db = await requireDb();
+    const [taxpayerCount, obligationCount, paymentRows, depositRows, syncRows] = await Promise.all([
+      db.select({ count: sql<number>`count(*)` }).from(taxpayers).where(and(eq(taxpayers.municipalityId, municipalityId), eq(taxpayers.status, "ACTIVE"))),
+      db.select({ count: sql<number>`count(*)` }).from(taxObligations).where(and(eq(taxObligations.municipalityId, municipalityId), inArray(taxObligations.status, ["PENDING", "PARTIALLY_PAID", "OVERDUE"]))),
+      db.select({ amount: paymentTransactions.netAmount, date: paymentTransactions.collectedAt }).from(paymentTransactions).where(and(eq(paymentTransactions.municipalityId, municipalityId), eq(paymentTransactions.status, "VALIDATED"))),
+      db.select({ amount: deposits.depositedAmount, status: deposits.status }).from(deposits).where(eq(deposits.municipalityId, municipalityId)),
+      db.select({ count: sql<number>`count(*)` }).from(syncOperations).where(and(eq(syncOperations.municipalityId, municipalityId), inArray(syncOperations.status, ["PENDING", "FAILED", "CONFLICT"]))),
+    ]);
+    const receiptsToday = paymentRows.filter(row => new Date(row.date).toDateString() === new Date().toDateString()).reduce((sum, row) => sum + Number(row.amount), 0);
+    const declared = depositRows.reduce((sum, row) => sum + Number(row.amount), 0);
+    return {
+      taxpayers: Number(taxpayerCount[0]?.count ?? 0),
+      dueObligations: Number(obligationCount[0]?.count ?? 0),
+      receiptsToday,
+      declared,
+      pendingSync: Number(syncRows[0]?.count ?? 0),
+    };
+  }),
+
+  activeMunicipality: protectedProcedure.query(async ({ ctx }) => {
+    const municipalityId = requireMunicipality(ctx.user);
+    const db = await requireDb();
+    const municipality = await db.select({ id: municipalities.id, code: municipalities.code, name: municipalities.name, currency: municipalities.currency, timezone: municipalities.timezone })
+      .from(municipalities)
+      .where(eq(municipalities.id, municipalityId))
+      .limit(1);
+    return mustGet(municipality[0], "Mairie active introuvable.");
+  }),
+
+  taxpayers: router({
+    list: protectedProcedure
+      .input(z.object({ search: z.string().trim().max(120).optional() }).optional())
+      .query(async ({ ctx, input }) => {
+        const municipalityId = await requireAccess(ctx.user, "taxpayers", "read");
+        const db = await requireDb();
+        const search = input?.search;
+        return db.select().from(taxpayers).where(and(
+          eq(taxpayers.municipalityId, municipalityId),
+          search ? or(like(taxpayers.reference, `%${search}%`), like(taxpayers.firstName, `%${search}%`), like(taxpayers.lastName, `%${search}%`), like(taxpayers.legalName, `%${search}%`)) : undefined,
+        )).orderBy(desc(taxpayers.createdAt)).limit(100);
+    }),
+    duplicates: protectedProcedure.input(taxpayerInput).query(async ({ ctx, input }) => {
+      const municipalityId = await requireAccess(ctx.user, "taxpayers", "read");
+      const db = await requireDb();
+      const candidates = [
+        input.nationalId ? eq(taxpayers.nationalId, input.nationalId) : undefined,
+        input.taxId ? eq(taxpayers.taxId, input.taxId) : undefined,
+      ].filter(Boolean) as ReturnType<typeof eq>[];
+      if (!candidates.length) return [];
+      return db.select().from(taxpayers).where(and(eq(taxpayers.municipalityId, municipalityId), or(...candidates))).limit(10);
+    }),
+    create: protectedProcedure.input(taxpayerInput).mutation(async ({ ctx, input }) => {
+      const municipalityId = await requireAccess(ctx.user, "taxpayers", "create");
+      const db = await requireDb();
+      const identityChecks = [input.nationalId ? eq(taxpayers.nationalId, input.nationalId) : undefined, input.taxId ? eq(taxpayers.taxId, input.taxId) : undefined].filter(Boolean) as ReturnType<typeof eq>[];
+      if (identityChecks.length) {
+        const duplicate = await db.select({ id: taxpayers.id, reference: taxpayers.reference }).from(taxpayers).where(and(eq(taxpayers.municipalityId, municipalityId), or(...identityChecks))).limit(1);
+        if (duplicate[0]) throw new TRPCError({ code: "CONFLICT", message: `Doublon détecté : ${duplicate[0].reference}. Utilisez la fusion administrative si nécessaire.` });
+      }
+      if (input.type === "PERSON" && (!input.firstName || !input.lastName)) throw new TRPCError({ code: "BAD_REQUEST", message: "Le nom et le prénom sont requis pour une personne physique." });
+      if (input.type === "COMPANY" && !input.legalName) throw new TRPCError({ code: "BAD_REQUEST", message: "La raison sociale est requise pour une personne morale." });
+      const id = randomUUID();
+      const payload = { id, municipalityId, reference: reference("RED"), ...input, createdBy: ctx.user.id } as const;
+      await db.insert(taxpayers).values(payload);
+      await audit(db, { municipalityId, actorId: ctx.user.id, action: "CREATE", module: "taxpayers", entityType: "taxpayer", entityId: id, afterValue: payload });
+      return payload;
+    }),
+    merge: protectedProcedure.input(z.object({ sourceTaxpayerId: z.string().uuid(), targetTaxpayerId: z.string().uuid(), reason: z.string().trim().min(5).max(1000) })).mutation(async ({ ctx, input }) => {
+      const municipalityId = await requireAccess(ctx.user, "taxpayers", "merge");
+      if (input.sourceTaxpayerId === input.targetTaxpayerId) throw new TRPCError({ code: "BAD_REQUEST", message: "Les deux redevables doivent être distincts." });
+      const db = await requireDb();
+      await db.transaction(async tx => {
+        const rows = await tx.select().from(taxpayers).where(and(eq(taxpayers.municipalityId, municipalityId), inArray(taxpayers.id, [input.sourceTaxpayerId, input.targetTaxpayerId])));
+        const source = mustGet(rows.find(row => row.id === input.sourceTaxpayerId), "Redevable source introuvable.");
+        const target = mustGet(rows.find(row => row.id === input.targetTaxpayerId), "Redevable cible introuvable.");
+        if (source.status !== "ACTIVE" || target.status !== "ACTIVE") throw new TRPCError({ code: "CONFLICT", message: "La fusion exige deux redevables actifs." });
+        await tx.insert(taxpayerMerges).values({ sourceTaxpayerId: source.id, targetTaxpayerId: target.id, reason: input.reason, mergedBy: ctx.user.id });
+        await tx.update(activities).set({ currentTaxpayerId: target.id }).where(eq(activities.currentTaxpayerId, source.id));
+        await tx.update(taxObligations).set({ taxpayerId: target.id }).where(eq(taxObligations.taxpayerId, source.id));
+        await tx.update(taxpayers).set({ status: "MERGED", mergedIntoId: target.id }).where(eq(taxpayers.id, source.id));
+        await tx.insert(auditLogs).values({ municipalityId, actorId: ctx.user.id, action: "MERGE", module: "taxpayers", entityType: "taxpayer", entityId: source.id, beforeValue: source, afterValue: { mergedIntoId: target.id, reason: input.reason } });
+      });
+      return { success: true };
+    }),
+  }),
+
+  activities: router({
+    list: protectedProcedure.query(async ({ ctx }) => {
+      const municipalityId = await requireAccess(ctx.user, "activities", "read");
+      const db = await requireDb();
+      return db.select({ activity: activities, taxpayer: taxpayers, market: markets }).from(activities)
+        .leftJoin(taxpayers, eq(activities.currentTaxpayerId, taxpayers.id))
+        .leftJoin(markets, eq(activities.marketId, markets.id))
+        .where(eq(activities.municipalityId, municipalityId)).orderBy(desc(activities.createdAt)).limit(100);
+    }),
+    create: protectedProcedure.input(z.object({ taxpayerId: z.string().uuid(), activityTypeId: z.string().uuid(), label: z.string().trim().min(2).max(220), locationType: z.enum(["ZONE", "MARKET", "MARKET_LOCATION", "MOBILE", "CUSTOM"]), zoneId: z.string().uuid().optional(), marketId: z.string().uuid().optional(), marketLocationId: z.string().uuid().optional(), address: z.string().trim().max(500).optional(), startedAt: z.coerce.date() })).mutation(async ({ ctx, input }) => {
+      const municipalityId = await requireAccess(ctx.user, "activities", "create");
+      if (input.marketLocationId) await requireTerritoryAccess(ctx.user, "MARKET_LOCATION", input.marketLocationId);
+      else if (input.marketId) await requireTerritoryAccess(ctx.user, "MARKET", input.marketId);
+      else if (input.zoneId) await requireTerritoryAccess(ctx.user, "ZONE", input.zoneId);
+      const db = await requireDb();
+      const taxpayer = await db.select({ id: taxpayers.id }).from(taxpayers).where(and(eq(taxpayers.id, input.taxpayerId), eq(taxpayers.municipalityId, municipalityId), eq(taxpayers.status, "ACTIVE"))).limit(1);
+      mustGet(taxpayer[0], "Le redevable actif est introuvable.");
+      const id = randomUUID();
+      const payload = { id, municipalityId, reference: reference("ACT"), currentTaxpayerId: input.taxpayerId, activityTypeId: input.activityTypeId, label: input.label, locationType: input.locationType, zoneId: input.zoneId, marketId: input.marketId, marketLocationId: input.marketLocationId, address: input.address, startedAt: input.startedAt, createdBy: ctx.user.id };
+      await db.transaction(async tx => {
+        await tx.insert(activities).values(payload);
+        await tx.insert(activityOwnerships).values({ activityId: id, taxpayerId: input.taxpayerId, startDate: input.startedAt, transferredBy: ctx.user.id });
+        await tx.insert(auditLogs).values({ municipalityId, actorId: ctx.user.id, action: "CREATE", module: "activities", entityType: "activity", entityId: id, afterValue: payload });
+      });
+      return payload;
+    }),
+    transfer: protectedProcedure.input(z.object({ activityId: z.string().uuid(), targetTaxpayerId: z.string().uuid(), transferredAt: z.coerce.date() })).mutation(async ({ ctx, input }) => {
+      const municipalityId = await requireAccess(ctx.user, "activities", "update");
+      const db = await requireDb();
+      await db.transaction(async tx => {
+        const activity = mustGet((await tx.select().from(activities).where(and(eq(activities.id, input.activityId), eq(activities.municipalityId, municipalityId))).limit(1))[0], "Activité introuvable.");
+        const target = mustGet((await tx.select().from(taxpayers).where(and(eq(taxpayers.id, input.targetTaxpayerId), eq(taxpayers.municipalityId, municipalityId), eq(taxpayers.status, "ACTIVE"))).limit(1))[0], "Nouveau propriétaire introuvable.");
+        await tx.update(activityOwnerships).set({ endDate: input.transferredAt }).where(and(eq(activityOwnerships.activityId, activity.id), sql`${activityOwnerships.endDate} IS NULL`));
+        await tx.insert(activityOwnerships).values({ activityId: activity.id, taxpayerId: target.id, startDate: input.transferredAt, transferredBy: ctx.user.id });
+        await tx.update(activities).set({ currentTaxpayerId: target.id }).where(eq(activities.id, activity.id));
+        await tx.insert(auditLogs).values({ municipalityId, actorId: ctx.user.id, action: "TRANSFER", module: "activities", entityType: "activity", entityId: activity.id, beforeValue: { taxpayerId: activity.currentTaxpayerId }, afterValue: { taxpayerId: target.id } });
+      });
+      return { success: true };
+    }),
+  }),
+
+  territory: router({
+    tree: protectedProcedure.query(async ({ ctx }) => {
+      const municipalityId = await requireAccess(ctx.user, "territory", "read");
+      const db = await requireDb();
+      const [sectorRows, zoneRows, marketRows, locationRows] = await Promise.all([
+        db.select().from(sectors).where(eq(sectors.municipalityId, municipalityId)),
+        db.select().from(zones), db.select().from(markets), db.select().from(marketLocations),
+      ]);
+      return { sectors: sectorRows, zones: zoneRows, markets: marketRows, locations: locationRows };
+    }),
+    createSector: protectedProcedure.input(z.object({ code: z.string().trim().min(2).max(32), name: z.string().trim().min(2).max(120) })).mutation(async ({ ctx, input }) => {
+      requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "territory", "manage"); const db = await requireDb(); const id = randomUUID();
+      await db.insert(sectors).values({ id, municipalityId, code: input.code.toUpperCase(), name: input.name });
+      await audit(db, { municipalityId, actorId: ctx.user.id, action: "CREATE", module: "territory", entityType: "sector", entityId: id, afterValue: input }); return { id, ...input };
+    }),
+    createZone: protectedProcedure.input(z.object({ sectorId: z.string().uuid(), code: z.string().trim().min(2).max(32), name: z.string().trim().min(2).max(120) })).mutation(async ({ ctx, input }) => {
+      requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "territory", "manage"); const db = await requireDb();
+      mustGet((await db.select({ id: sectors.id }).from(sectors).where(and(eq(sectors.id, input.sectorId), eq(sectors.municipalityId, municipalityId))).limit(1))[0], "Secteur introuvable.");
+      const id = randomUUID(); await db.insert(zones).values({ id, ...input, code: input.code.toUpperCase() }); await audit(db, { municipalityId, actorId: ctx.user.id, action: "CREATE", module: "territory", entityType: "zone", entityId: id, afterValue: input }); return { id, ...input };
+    }),
+    createMarket: protectedProcedure.input(z.object({ zoneId: z.string().uuid(), code: z.string().trim().min(2).max(32), name: z.string().trim().min(2).max(160), address: z.string().trim().max(500).optional() })).mutation(async ({ ctx, input }) => {
+      requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "territory", "manage"); const db = await requireDb();
+      const zone = mustGet((await db.select({ municipalityId: sectors.municipalityId }).from(zones).innerJoin(sectors, eq(zones.sectorId, sectors.id)).where(eq(zones.id, input.zoneId)).limit(1))[0], "Zone introuvable."); if (zone.municipalityId !== municipalityId) throw new TRPCError({ code: "FORBIDDEN", message: "La zone ne relève pas de votre mairie." });
+      const id = randomUUID(); await db.insert(markets).values({ id, ...input, code: input.code.toUpperCase() }); await audit(db, { municipalityId, actorId: ctx.user.id, action: "CREATE", module: "territory", entityType: "market", entityId: id, afterValue: input }); return { id, ...input };
+    }),
+    createLocation: protectedProcedure.input(z.object({ marketId: z.string().uuid(), code: z.string().trim().min(2).max(48), label: z.string().trim().min(2).max(120) })).mutation(async ({ ctx, input }) => {
+      requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "territory", "manage"); const db = await requireDb();
+      const market = mustGet((await db.select({ municipalityId: sectors.municipalityId }).from(markets).innerJoin(zones, eq(markets.zoneId, zones.id)).innerJoin(sectors, eq(zones.sectorId, sectors.id)).where(eq(markets.id, input.marketId)).limit(1))[0], "Marché introuvable."); if (market.municipalityId !== municipalityId) throw new TRPCError({ code: "FORBIDDEN", message: "Le marché ne relève pas de votre mairie." });
+      const id = randomUUID(); await db.insert(marketLocations).values({ id, ...input, code: input.code.toUpperCase() }); await audit(db, { municipalityId, actorId: ctx.user.id, action: "CREATE", module: "territory", entityType: "market_location", entityId: id, afterValue: input }); return { id, ...input };
+    }),
+  }),
+
+  catalog: router({
+    options: protectedProcedure.query(async ({ ctx }) => {
+      const municipalityId = await requireAccess(ctx.user, "administration", "read"); const db = await requireDb();
+      const [activityCategoryRows, activityTypeRows, taxCategoryRows, taxTypeRows, periodicityRows, paymentMethodRows] = await Promise.all([
+        db.select().from(activityCategories).where(eq(activityCategories.municipalityId, municipalityId)),
+        db.select({ type: activityTypes, category: activityCategories }).from(activityTypes).innerJoin(activityCategories, eq(activityTypes.categoryId, activityCategories.id)).where(eq(activityCategories.municipalityId, municipalityId)),
+        db.select().from(taxCategories).where(eq(taxCategories.municipalityId, municipalityId)),
+        db.select().from(taxTypes).where(eq(taxTypes.municipalityId, municipalityId)),
+        db.select().from(taxPeriodicities).where(or(eq(taxPeriodicities.municipalityId, municipalityId), isNull(taxPeriodicities.municipalityId))),
+        db.select().from(paymentMethods).where(eq(paymentMethods.municipalityId, municipalityId)),
+      ]);
+      return { activityCategories: activityCategoryRows, activityTypes: activityTypeRows, taxCategories: taxCategoryRows, taxTypes: taxTypeRows, periodicities: periodicityRows, paymentMethods: paymentMethodRows };
+    }),
+    createActivityCategory: protectedProcedure.input(z.object({ code: z.string().trim().min(2).max(48), label: z.string().trim().min(2).max(160) })).mutation(async ({ ctx, input }) => {
+      requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb(); const id = randomUUID();
+      await db.insert(activityCategories).values({ id, municipalityId, code: input.code.toUpperCase(), label: input.label }); await audit(db, { municipalityId, actorId: ctx.user.id, action: "CREATE", module: "catalog", entityType: "activity_category", entityId: id, afterValue: input }); return { id, ...input };
+    }),
+    createActivityType: protectedProcedure.input(z.object({ categoryId: z.string().uuid(), code: z.string().trim().min(2).max(48), label: z.string().trim().min(2).max(160) })).mutation(async ({ ctx, input }) => {
+      requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb();
+      mustGet((await db.select({ id: activityCategories.id }).from(activityCategories).where(and(eq(activityCategories.id, input.categoryId), eq(activityCategories.municipalityId, municipalityId))).limit(1))[0], "Catégorie d’activité introuvable.");
+      const id = randomUUID(); await db.insert(activityTypes).values({ id, ...input, code: input.code.toUpperCase() }); await audit(db, { municipalityId, actorId: ctx.user.id, action: "CREATE", module: "catalog", entityType: "activity_type", entityId: id, afterValue: input }); return { id, ...input };
+    }),
+    createTaxCategory: protectedProcedure.input(z.object({ code: z.string().trim().min(2).max(48), label: z.string().trim().min(2).max(160) })).mutation(async ({ ctx, input }) => {
+      requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb(); const id = randomUUID();
+      await db.insert(taxCategories).values({ id, municipalityId, code: input.code.toUpperCase(), label: input.label }); await audit(db, { municipalityId, actorId: ctx.user.id, action: "CREATE", module: "catalog", entityType: "tax_category", entityId: id, afterValue: input }); return { id, ...input };
+    }),
+    createTaxType: protectedProcedure.input(z.object({ categoryId: z.string().uuid().optional(), code: z.string().trim().min(2).max(48), label: z.string().trim().min(2).max(180) })).mutation(async ({ ctx, input }) => {
+      requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb();
+      if (input.categoryId) mustGet((await db.select({ id: taxCategories.id }).from(taxCategories).where(and(eq(taxCategories.id, input.categoryId), eq(taxCategories.municipalityId, municipalityId))).limit(1))[0], "Catégorie de taxe introuvable.");
+      const id = randomUUID(); await db.insert(taxTypes).values({ id, municipalityId, ...input, code: input.code.toUpperCase() }); await audit(db, { municipalityId, actorId: ctx.user.id, action: "CREATE", module: "catalog", entityType: "tax_type", entityId: id, afterValue: input }); return { id, ...input };
+    }),
+    createPeriodicity: protectedProcedure.input(z.object({ code: z.string().trim().min(2).max(48), label: z.string().trim().min(2).max(120), calendarUnit: z.enum(["DAY", "WEEK", "MONTH", "QUARTER", "SEMESTER", "YEAR", "CUSTOM"]), intervalCount: z.number().int().min(1).max(365).default(1) })).mutation(async ({ ctx, input }) => {
+      requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb(); const id = randomUUID();
+      await db.insert(taxPeriodicities).values({ id, municipalityId, ...input, code: input.code.toUpperCase() }); await audit(db, { municipalityId, actorId: ctx.user.id, action: "CREATE", module: "catalog", entityType: "tax_periodicity", entityId: id, afterValue: input }); return { id, ...input };
+    }),
+    createPaymentMethod: protectedProcedure.input(z.object({ code: z.string().trim().min(2).max(32), label: z.string().trim().min(2).max(96), isCash: z.boolean() })).mutation(async ({ ctx, input }) => {
+      requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb(); const id = randomUUID();
+      await db.insert(paymentMethods).values({ id, municipalityId, ...input, code: input.code.toUpperCase() }); await audit(db, { municipalityId, actorId: ctx.user.id, action: "CREATE", module: "catalog", entityType: "payment_method", entityId: id, afterValue: input }); return { id, ...input };
+    }),
+  }),
+
+  taxation: router({
+    obligations: protectedProcedure.query(async ({ ctx }) => {
+      const municipalityId = await requireAccess(ctx.user, "obligations", "read"); const db = await requireDb();
+      return db.select({ obligation: taxObligations, taxpayer: taxpayers, activity: activities }).from(taxObligations)
+        .leftJoin(taxpayers, eq(taxObligations.taxpayerId, taxpayers.id)).leftJoin(activities, eq(taxObligations.activityId, activities.id))
+        .where(eq(taxObligations.municipalityId, municipalityId)).orderBy(desc(taxObligations.dueDate)).limit(200);
+    }),
+    createObligation: protectedProcedure.input(z.object({ taxpayerId: z.string().uuid(), activityId: z.string().uuid(), taxTypeId: z.string().uuid(), taxRuleId: z.string().uuid(), periodStart: z.coerce.date(), periodEnd: z.coerce.date(), dueDate: z.coerce.date(), expectedAmount: money })).mutation(async ({ ctx, input }) => {
+      const municipalityId = await requireAccess(ctx.user, "obligations", "create"); const db = await requireDb(); const id = randomUUID();
+      const payload = { id, municipalityId, reference: reference("OBL"), ...input, expectedAmount: moneyValue(input.expectedAmount), remainingAmount: moneyValue(input.expectedAmount) };
+      await db.insert(taxObligations).values(payload); await audit(db, { municipalityId, actorId: ctx.user.id, action: "CREATE", module: "obligations", entityType: "obligation", entityId: id, afterValue: payload }); return payload;
+    }),
+    createRule: protectedProcedure.input(z.object({ taxTypeId: z.string().uuid(), periodicityId: z.string().uuid(), code: z.string().trim().min(2).max(64), label: z.string().trim().min(2).max(180), baseAmount: money, graceDays: z.number().int().min(0).max(365).default(0), penaltyRate: z.number().min(0).max(1).default(0), validFrom: z.coerce.date(), validTo: z.coerce.date().optional(), scope: z.object({ activityTypeId: z.string().uuid().optional(), sectorId: z.string().uuid().optional(), zoneId: z.string().uuid().optional(), marketId: z.string().uuid().optional(), marketLocationId: z.string().uuid().optional(), taxpayerType: z.enum(["PERSON", "COMPANY"]).optional() }).optional() })).mutation(async ({ ctx, input }) => {
+      requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "fiscality", "manage"); const db = await requireDb();
+      mustGet((await db.select({ id: taxTypes.id }).from(taxTypes).where(and(eq(taxTypes.id, input.taxTypeId), eq(taxTypes.municipalityId, municipalityId))).limit(1))[0], "Type de taxe introuvable.");
+      mustGet((await db.select({ id: taxPeriodicities.id }).from(taxPeriodicities).where(and(eq(taxPeriodicities.id, input.periodicityId), or(eq(taxPeriodicities.municipalityId, municipalityId), isNull(taxPeriodicities.municipalityId)))).limit(1))[0], "Périodicité introuvable.");
+      const id = randomUUID(); const { scope, ...rule } = input; await db.insert(taxRules).values({ id, municipalityId, ...rule, code: rule.code.toUpperCase(), baseAmount: moneyValue(rule.baseAmount), penaltyRate: moneyValue(rule.penaltyRate), createdBy: ctx.user.id });
+      if (scope) await db.insert(taxRuleScopes).values({ id: randomUUID(), taxRuleId: id, ...scope }); await audit(db, { municipalityId, actorId: ctx.user.id, action: "CREATE", module: "fiscality", entityType: "tax_rule", entityId: id, afterValue: input }); return { id, ...input };
+    }),
+    assignRuleToActivity: protectedProcedure.input(z.object({ activityId: z.string().uuid(), taxRuleId: z.string().uuid(), startDate: z.coerce.date() })).mutation(async ({ ctx, input }) => {
+      const municipalityId = await requireAccess(ctx.user, "fiscality", "manage"); const db = await requireDb();
+      mustGet((await db.select({ id: activities.id }).from(activities).where(and(eq(activities.id, input.activityId), eq(activities.municipalityId, municipalityId))).limit(1))[0], "Activité introuvable."); mustGet((await db.select({ id: taxRules.id }).from(taxRules).where(and(eq(taxRules.id, input.taxRuleId), eq(taxRules.municipalityId, municipalityId))).limit(1))[0], "Règle fiscale introuvable.");
+      const id = randomUUID(); await db.insert(activityTaxAssignments).values({ id, ...input }); await audit(db, { municipalityId, actorId: ctx.user.id, action: "ASSIGN", module: "fiscality", entityType: "activity_tax_assignment", entityId: id, afterValue: input }); return { id, ...input };
+    }),
+    createExemption: protectedProcedure.input(z.object({ taxpayerId: z.string().uuid(), taxTypeId: z.string().uuid().optional(), rate: z.number().min(0).max(1).default(1), reason: z.string().trim().min(5).max(1000), startDate: z.coerce.date(), endDate: z.coerce.date().optional() })).mutation(async ({ ctx, input }) => {
+      const municipalityId = await requireAccess(ctx.user, "fiscality", "manage"); const db = await requireDb(); mustGet((await db.select({ id: taxpayers.id }).from(taxpayers).where(and(eq(taxpayers.id, input.taxpayerId), eq(taxpayers.municipalityId, municipalityId))).limit(1))[0], "Redevable introuvable.");
+      const id = randomUUID(); await db.insert(taxExemptions).values({ id, ...input, rate: moneyValue(input.rate), status: "PENDING" }); await audit(db, { municipalityId, actorId: ctx.user.id, action: "CREATE", module: "fiscality", entityType: "tax_exemption", entityId: id, afterValue: input }); return { id, ...input };
+    }),
+    approveExemption: protectedProcedure.input(z.object({ exemptionId: z.string().uuid(), approved: z.boolean() })).mutation(async ({ ctx, input }) => {
+      requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "fiscality", "approve"); const db = await requireDb(); const exemption = mustGet((await db.select({ exemption: taxExemptions, municipalityId: taxpayers.municipalityId }).from(taxExemptions).innerJoin(taxpayers, eq(taxExemptions.taxpayerId, taxpayers.id)).where(eq(taxExemptions.id, input.exemptionId)).limit(1))[0], "Exonération introuvable."); if (exemption.municipalityId !== municipalityId) throw new TRPCError({ code: "FORBIDDEN", message: "Exonération hors périmètre." });
+      await db.update(taxExemptions).set({ status: input.approved ? "APPROVED" : "REJECTED", approvedBy: ctx.user.id }).where(eq(taxExemptions.id, input.exemptionId)); await audit(db, { municipalityId, actorId: ctx.user.id, action: input.approved ? "APPROVE" : "REJECT", module: "fiscality", entityType: "tax_exemption", entityId: input.exemptionId, afterValue: input }); return { success: true };
+    }),
+    generateForActivity: protectedProcedure.input(z.object({ activityId: z.string().uuid(), periodStart: z.coerce.date(), periodEnd: z.coerce.date(), dueDate: z.coerce.date() })).mutation(async ({ ctx, input }) => {
+      const municipalityId = await requireAccess(ctx.user, "obligations", "generate"); const db = await requireDb(); const activity = mustGet((await db.select().from(activities).where(and(eq(activities.id, input.activityId), eq(activities.municipalityId, municipalityId))).limit(1))[0], "Activité introuvable."); if (!activity.currentTaxpayerId) throw new TRPCError({ code: "CONFLICT", message: "L’activité n’a pas de redevable actif." });
+      const assignments = await db.select({ assignment: activityTaxAssignments, rule: taxRules }).from(activityTaxAssignments).innerJoin(taxRules, eq(activityTaxAssignments.taxRuleId, taxRules.id)).where(and(eq(activityTaxAssignments.activityId, activity.id), eq(activityTaxAssignments.isActive, true), eq(taxRules.isActive, true)));
+      const created: string[] = []; for (const { assignment, rule } of assignments) { const existing = await db.select({ id: taxObligations.id }).from(taxObligations).where(and(eq(taxObligations.activityId, activity.id), eq(taxObligations.taxRuleId, assignment.taxRuleId), eq(taxObligations.periodStart, input.periodStart), eq(taxObligations.periodEnd, input.periodEnd))).limit(1); if (existing[0]) continue; const exemption = (await db.select().from(taxExemptions).where(and(eq(taxExemptions.taxpayerId, activity.currentTaxpayerId), or(isNull(taxExemptions.taxTypeId), eq(taxExemptions.taxTypeId, rule.taxTypeId)), eq(taxExemptions.status, "APPROVED"), lte(taxExemptions.startDate, input.periodEnd), or(isNull(taxExemptions.endDate), gte(taxExemptions.endDate, input.periodStart)))).limit(1))[0]; const expected = Number(rule.baseAmount) * (1 - Number(exemption?.rate ?? 0)); const id = randomUUID(); await db.insert(taxObligations).values({ id, municipalityId, reference: reference("OBL"), taxpayerId: activity.currentTaxpayerId, activityId: activity.id, taxTypeId: rule.taxTypeId, taxRuleId: rule.id, periodStart: input.periodStart, periodEnd: input.periodEnd, dueDate: input.dueDate, expectedAmount: moneyValue(expected), remainingAmount: moneyValue(expected), status: "PENDING" }); created.push(id); }
+      await audit(db, { municipalityId, actorId: ctx.user.id, action: "GENERATE", module: "obligations", entityType: "tax_obligation_batch", entityId: activity.id, afterValue: { ...input, created } }); return { createdCount: created.length, created };
+    }),
+    applyAdjustment: protectedProcedure.input(z.object({ obligationId: z.string().uuid(), adjustmentAmount: z.number().finite(), discountAmount: z.number().finite().min(0).optional(), reason: z.string().trim().min(5).max(1000) })).mutation(async ({ ctx, input }) => {
+      requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "obligations", "adjust"); const db = await requireDb();
+      const obligation = mustGet((await db.select().from(taxObligations).where(and(eq(taxObligations.id, input.obligationId), eq(taxObligations.municipalityId, municipalityId))).limit(1))[0], "Obligation introuvable.");
+      if (obligation.status === "PAID" || obligation.status === "CANCELLED") throw new TRPCError({ code: "CONFLICT", message: "Cette obligation ne peut plus être ajustée." });
+      const nextAdjustment = Number(obligation.adjustmentAmount) + input.adjustmentAmount; const nextDiscount = Number(obligation.discountAmount) + (input.discountAmount ?? 0);
+      const due = Math.max(0, Number(obligation.expectedAmount) + Number(obligation.penaltyAmount) + nextAdjustment - nextDiscount);
+      const paid = Number(obligation.expectedAmount) + Number(obligation.penaltyAmount) + Number(obligation.adjustmentAmount) - Number(obligation.discountAmount) - Number(obligation.remainingAmount);
+      const remaining = Math.max(0, due - paid);
+      await db.update(taxObligations).set({ adjustmentAmount: moneyValue(nextAdjustment), discountAmount: moneyValue(nextDiscount), remainingAmount: moneyValue(remaining), status: remaining === 0 ? "PAID" : paid > 0 ? "PARTIALLY_PAID" : "PENDING" }).where(eq(taxObligations.id, obligation.id));
+      await audit(db, { municipalityId, actorId: ctx.user.id, action: "ADJUST", module: "obligations", entityType: "obligation", entityId: obligation.id, beforeValue: obligation, afterValue: { adjustmentAmount: nextAdjustment, discountAmount: nextDiscount, reason: input.reason } }); return { success: true };
+    }),
+  }),
+
+  payments: router({
+    methods: protectedProcedure.query(async ({ ctx }) => { const municipalityId = await requireAccess(ctx.user, "payments", "read"); const db = await requireDb(); return db.select().from(paymentMethods).where(and(eq(paymentMethods.municipalityId, municipalityId), eq(paymentMethods.isActive, true))); }),
+    list: protectedProcedure.query(async ({ ctx }) => { const municipalityId = await requireAccess(ctx.user, "payments", "read"); const db = await requireDb(); return db.select({ payment: paymentTransactions, taxpayer: taxpayers, receipt: receipts }).from(paymentTransactions).leftJoin(taxpayers, eq(paymentTransactions.taxpayerId, taxpayers.id)).leftJoin(receipts, eq(receipts.paymentTransactionId, paymentTransactions.id)).where(eq(paymentTransactions.municipalityId, municipalityId)).orderBy(desc(paymentTransactions.collectedAt)).limit(100); }),
+    collect: protectedProcedure.input(z.object({ taxpayerId: z.string().uuid(), items: z.array(z.object({ obligationId: z.string().uuid(), amount: money })).min(1), allocations: z.array(z.object({ paymentMethodId: z.string().uuid(), amount: money, externalReference: z.string().trim().max(160).optional() })).min(1), collectedAt: z.coerce.date(), deviceId: z.string().trim().max(128).optional(), offlineOperationId: z.string().trim().max(96).optional() })).mutation(async ({ ctx, input }) => {
+      const municipalityId = await requireAccess(ctx.user, "payments", "create"); const db = await requireDb();
+      const itemTotal = input.items.reduce((sum, item) => sum + item.amount, 0); const allocationTotal = input.allocations.reduce((sum, allocation) => sum + allocation.amount, 0);
+      if (!amountsMatch(itemTotal, allocationTotal)) throw new TRPCError({ code: "BAD_REQUEST", message: "Le total des allocations de paiement doit égaler le total affecté aux obligations." });
+      if (input.offlineOperationId) { const existing = await db.select().from(paymentTransactions).where(eq(paymentTransactions.offlineOperationId, input.offlineOperationId)).limit(1); if (existing[0]) return { id: existing[0].id, reference: existing[0].reference, idempotent: true }; }
+      const id = randomUUID(); const paymentReference = reference("PAY"); const receiptReference = reference("REC");
+      await db.transaction(async tx => {
+        const obligations = await tx.select().from(taxObligations).where(and(eq(taxObligations.municipalityId, municipalityId), eq(taxObligations.taxpayerId, input.taxpayerId), inArray(taxObligations.id, input.items.map(item => item.obligationId))));
+        if (obligations.length !== input.items.length) throw new TRPCError({ code: "BAD_REQUEST", message: "Une obligation est inconnue ou n’appartient pas au redevable sélectionné." });
+        for (const item of input.items) { const obligation = mustGet(obligations.find(row => row.id === item.obligationId), "Obligation introuvable."); if (Number(obligation.remainingAmount) + 0.004 < item.amount) throw new TRPCError({ code: "BAD_REQUEST", message: `Le montant dépasse le restant dû pour ${obligation.reference}.` }); }
+        await tx.insert(paymentTransactions).values({ id, municipalityId, reference: paymentReference, taxpayerId: input.taxpayerId, collectedBy: ctx.user.id, deviceId: input.deviceId, offlineOperationId: input.offlineOperationId, grossAmount: moneyValue(itemTotal), netAmount: moneyValue(itemTotal), status: "VALIDATED", collectedAt: input.collectedAt, validatedAt: new Date() });
+        await tx.insert(paymentItems).values(input.items.map(item => ({ paymentTransactionId: id, taxObligationId: item.obligationId, amount: moneyValue(item.amount) })));
+        await tx.insert(paymentAllocations).values(input.allocations.map(allocation => ({ paymentTransactionId: id, paymentMethodId: allocation.paymentMethodId, amount: moneyValue(allocation.amount), externalReference: allocation.externalReference })));
+        for (const item of input.items) { const obligation = mustGet(obligations.find(row => row.id === item.obligationId), "Obligation introuvable."); const next = nextObligationState(Number(obligation.remainingAmount), item.amount); await tx.update(taxObligations).set({ remainingAmount: moneyValue(next.remaining), status: next.status }).where(eq(taxObligations.id, obligation.id)); }
+        const snapshot = { receiptReference, paymentReference, taxpayerId: input.taxpayerId, amount: moneyValue(itemTotal), collectedAt: input.collectedAt.toISOString(), items: input.items, allocations: input.allocations };
+        const integrityHash = receiptIntegrityHash(snapshot); const receiptId = randomUUID();
+        await tx.insert(receipts).values({ id: receiptId, municipalityId, paymentTransactionId: id, reference: receiptReference, qrPayload: `TAXMUN:${receiptReference}:${integrityHash}`, integrityHash, immutableSnapshot: snapshot, issuedAt: new Date(), status: "FINAL" });
+        await tx.insert(receiptPrintHistory).values({ receiptId, printType: "ORIGINAL", printedBy: ctx.user.id, deviceId: input.deviceId });
+        await tx.insert(auditLogs).values({ municipalityId, actorId: ctx.user.id, action: "COLLECT", module: "payments", entityType: "payment", entityId: id, afterValue: { paymentReference, receiptReference, amount: moneyValue(itemTotal) }, deviceId: input.deviceId });
+      });
+      return { id, reference: paymentReference, receiptReference, idempotent: false };
+    }),
+    reprintReceipt: protectedProcedure.input(z.object({ receiptId: z.string().uuid(), deviceId: z.string().trim().max(128).optional() })).mutation(async ({ ctx, input }) => {
+      const municipalityId = await requireAccess(ctx.user, "receipts", "reprint"); const db = await requireDb(); const receipt = mustGet((await db.select().from(receipts).where(and(eq(receipts.id, input.receiptId), eq(receipts.municipalityId, municipalityId))).limit(1))[0], "Reçu introuvable.");
+      await db.insert(receiptPrintHistory).values({ receiptId: receipt.id, printType: "REPRINT", printedBy: ctx.user.id, deviceId: input.deviceId }); await audit(db, { municipalityId, actorId: ctx.user.id, action: "REPRINT", module: "receipts", entityType: "receipt", entityId: receipt.id, afterValue: { reference: receipt.reference }, deviceId: input.deviceId }); return receipt;
+    }),
+  }),
+
+  receipts: router({
+    list: protectedProcedure.query(async ({ ctx }) => {
+      const municipalityId = await requireAccess(ctx.user, "receipts", "read");
+      const db = await requireDb();
+      return db.select({ receipt: receipts, payment: paymentTransactions, taxpayer: taxpayers }).from(receipts)
+        .innerJoin(paymentTransactions, eq(receipts.paymentTransactionId, paymentTransactions.id))
+        .leftJoin(taxpayers, eq(paymentTransactions.taxpayerId, taxpayers.id))
+        .where(eq(receipts.municipalityId, municipalityId)).orderBy(desc(receipts.issuedAt)).limit(200);
+    }),
+    printHistory: protectedProcedure.input(z.object({ receiptId: z.string().uuid() })).query(async ({ ctx, input }) => {
+      const municipalityId = await requireAccess(ctx.user, "receipts", "read");
+      const db = await requireDb();
+      const receipt = mustGet((await db.select({ id: receipts.id }).from(receipts).where(and(eq(receipts.id, input.receiptId), eq(receipts.municipalityId, municipalityId))).limit(1))[0], "Reçu introuvable.");
+      return db.select().from(receiptPrintHistory).where(eq(receiptPrintHistory.receiptId, receipt.id)).orderBy(desc(receiptPrintHistory.printedAt));
+    }),
+  }),
+
+  deposits: router({
+    list: protectedProcedure.query(async ({ ctx }) => { const municipalityId = await requireAccess(ctx.user, "deposits", "read"); const db = await requireDb(); return db.select().from(deposits).where(eq(deposits.municipalityId, municipalityId)).orderBy(desc(deposits.createdAt)).limit(100); }),
+    declare: protectedProcedure.input(z.object({ paymentIds: z.array(z.string().uuid()).min(1), depositedAmount: money, observation: z.string().trim().max(1000).optional() })).mutation(async ({ ctx, input }) => {
+      const municipalityId = await requireAccess(ctx.user, "deposits", "create"); const db = await requireDb(); const id = randomUUID();
+      const paymentRows = await db.select().from(paymentTransactions).where(and(eq(paymentTransactions.municipalityId, municipalityId), eq(paymentTransactions.collectedBy, ctx.user.id), inArray(paymentTransactions.id, input.paymentIds), eq(paymentTransactions.status, "VALIDATED")));
+      if (paymentRows.length !== input.paymentIds.length) throw new TRPCError({ code: "BAD_REQUEST", message: "Les paiements déclarés doivent appartenir à l’agent et être validés." });
+      const expectedAmount = paymentRows.reduce((sum, row) => sum + Number(row.netAmount), 0); const differenceAmount = input.depositedAmount - expectedAmount;
+      await db.transaction(async tx => { await tx.insert(deposits).values({ id, municipalityId, reference: reference("VER"), agentId: ctx.user.id, expectedAmount: moneyValue(expectedAmount), depositedAmount: moneyValue(input.depositedAmount), differenceAmount: moneyValue(differenceAmount), status: "SUBMITTED", submittedAt: new Date(), observation: input.observation }); await tx.insert(depositItems).values(paymentRows.map(payment => ({ depositId: id, paymentTransactionId: payment.id }))); await tx.insert(auditLogs).values({ municipalityId, actorId: ctx.user.id, action: "DECLARE", module: "deposits", entityType: "deposit", entityId: id, afterValue: { paymentIds: input.paymentIds, expectedAmount, depositedAmount: input.depositedAmount } }); });
+      return { id, differenceAmount };
+    }),
+    validate: protectedProcedure.input(z.object({ depositId: z.string().uuid(), countedAmount: money, denominations: z.record(z.string(), z.number().int().min(0)) })).mutation(async ({ ctx, input }) => {
+      requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "deposits", "validate"); const db = await requireDb(); const deposit = mustGet((await db.select().from(deposits).where(and(eq(deposits.id, input.depositId), eq(deposits.municipalityId, municipalityId))).limit(1))[0], "Versement introuvable.");
+      const difference = input.countedAmount - Number(deposit.expectedAmount); const status = amountsMatch(input.countedAmount, Number(deposit.expectedAmount)) ? "VALIDATED" : "PARTIALLY_VALIDATED";
+      await db.transaction(async tx => { await tx.insert(cashCounts).values({ depositId: deposit.id, countedAmount: moneyValue(input.countedAmount), denominations: input.denominations, countedBy: ctx.user.id }); await tx.update(deposits).set({ depositedAmount: moneyValue(input.countedAmount), differenceAmount: moneyValue(difference), status, validatedAt: new Date(), validatedBy: ctx.user.id }).where(eq(deposits.id, deposit.id)); await tx.insert(auditLogs).values({ municipalityId, actorId: ctx.user.id, action: "VALIDATE", module: "deposits", entityType: "deposit", entityId: deposit.id, beforeValue: deposit, afterValue: { countedAmount: input.countedAmount, status } }); }); return { success: true, status };
+    }),
+  }),
+
+  closings: router({
+    list: protectedProcedure.query(async ({ ctx }) => { const municipalityId = await requireAccess(ctx.user, "closings", "read"); const db = await requireDb(); return db.select().from(dailyClosings).where(eq(dailyClosings.municipalityId, municipalityId)).orderBy(desc(dailyClosings.businessDate)).limit(100); }),
+    close: protectedProcedure.input(z.object({ businessDate: z.coerce.date(), expectedAmount: money, depositedAmount: money })).mutation(async ({ ctx, input }) => {
+      const municipalityId = await requireAccess(ctx.user, "closings", "create"); const db = await requireDb(); const id = randomUUID(); const differenceAmount = input.depositedAmount - input.expectedAmount;
+      await db.insert(dailyClosings).values({ id, municipalityId, agentId: ctx.user.id, businessDate: input.businessDate, expectedAmount: moneyValue(input.expectedAmount), depositedAmount: moneyValue(input.depositedAmount), differenceAmount: moneyValue(differenceAmount), status: "SUBMITTED" }); await audit(db, { municipalityId, actorId: ctx.user.id, action: "SUBMIT", module: "closings", entityType: "daily_closing", entityId: id, afterValue: { businessDate: input.businessDate, expectedAmount: input.expectedAmount, depositedAmount: input.depositedAmount } }); return { id, differenceAmount };
+    }),
+  }),
+
+  reports: router({
+    collectionSummary: protectedProcedure.input(z.object({ from: z.coerce.date().optional(), to: z.coerce.date().optional() }).optional()).query(async ({ ctx, input }) => {
+      const municipalityId = await requireAccess(ctx.user, "reports", "read"); const db = await requireDb();
+      const rows = await db.select({ amount: paymentItems.amount, collectedAt: paymentTransactions.collectedAt, agentId: users.id, agentName: users.name, taxType: taxTypes.label, sector: sectors.name }).from(paymentTransactions)
+        .innerJoin(paymentItems, eq(paymentItems.paymentTransactionId, paymentTransactions.id)).innerJoin(taxObligations, eq(paymentItems.taxObligationId, taxObligations.id)).leftJoin(taxTypes, eq(taxObligations.taxTypeId, taxTypes.id)).leftJoin(activities, eq(taxObligations.activityId, activities.id)).leftJoin(markets, eq(activities.marketId, markets.id)).leftJoin(zones, eq(markets.zoneId, zones.id)).leftJoin(sectors, eq(zones.sectorId, sectors.id)).leftJoin(users, eq(paymentTransactions.collectedBy, users.id))
+        .where(and(eq(paymentTransactions.municipalityId, municipalityId), eq(paymentTransactions.status, "VALIDATED"), input?.from ? gte(paymentTransactions.collectedAt, input.from) : undefined, input?.to ? lte(paymentTransactions.collectedAt, input.to) : undefined));
+      const aggregate = (items: Array<{ label: string; amount: number }>) => Object.values(items.reduce<Record<string, { label: string; amount: number }>>((acc, item) => { const key = item.label || "Non renseigné"; acc[key] = { label: key, amount: (acc[key]?.amount ?? 0) + item.amount }; return acc; }, {})).sort((a, b) => b.amount - a.amount);
+      return { total: rows.reduce((sum, row) => sum + Number(row.amount), 0), transactionLines: rows.length, byAgent: aggregate(rows.map(row => ({ label: row.agentName || `Agent #${row.agentId ?? "?"}`, amount: Number(row.amount) }))), bySector: aggregate(rows.map(row => ({ label: row.sector || "Non rattaché", amount: Number(row.amount) }))), byTax: aggregate(rows.map(row => ({ label: row.taxType || "Taxe non renseignée", amount: Number(row.amount) }))), generatedAt: new Date() };
+    }),
+  }),
+
+  administration: router({
+    users: protectedProcedure.query(async ({ ctx }) => { requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb(); return db.select({ id: users.id, name: users.name, email: users.email, role: users.role, isActive: users.isActive, roles: sql<string>`group_concat(distinct ${roles.label} separator ', ')` }).from(users).leftJoin(userRoles, and(eq(userRoles.userId, users.id), isNull(userRoles.expiresAt))).leftJoin(roles, eq(userRoles.roleId, roles.id)).where(eq(users.municipalityId, municipalityId)).groupBy(users.id).orderBy(users.name); }),
+    roles: protectedProcedure.query(async ({ ctx }) => { requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb(); return db.select().from(roles).where(or(eq(roles.municipalityId, municipalityId), isNull(roles.municipalityId))).orderBy(roles.label); }),
+    permissions: protectedProcedure.query(async ({ ctx }) => { requireAdmin(ctx.user); await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb(); return db.select().from(permissions).orderBy(permissions.module, permissions.action); }),
+    createRole: protectedProcedure.input(z.object({ code: z.string().trim().min(2).max(64), label: z.string().trim().min(2).max(120) })).mutation(async ({ ctx, input }) => { requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb(); const id = randomUUID(); await db.insert(roles).values({ id, municipalityId, code: input.code.toUpperCase(), label: input.label }); await audit(db, { municipalityId, actorId: ctx.user.id, action: "CREATE", module: "administration", entityType: "role", entityId: id, afterValue: input }); return { id, ...input }; }),
+    createPermission: protectedProcedure.input(z.object({ module: z.string().trim().min(2).max(64), action: z.string().trim().min(2).max(32), label: z.string().trim().min(2).max(160) })).mutation(async ({ ctx, input }) => { requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb(); const id = randomUUID(); const code = `${input.module}.${input.action}`.toLowerCase(); await db.insert(permissions).values({ id, code, ...input }); await audit(db, { municipalityId, actorId: ctx.user.id, action: "CREATE", module: "administration", entityType: "permission", entityId: id, afterValue: { ...input, code } }); return { id, code, ...input }; }),
+    setRolePermissions: protectedProcedure.input(z.object({ roleId: z.string().uuid(), permissionIds: z.array(z.string().uuid()) })).mutation(async ({ ctx, input }) => { requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb(); mustGet((await db.select({ id: roles.id }).from(roles).where(and(eq(roles.id, input.roleId), or(eq(roles.municipalityId, municipalityId), isNull(roles.municipalityId)))).limit(1))[0], "Rôle introuvable."); await db.transaction(async tx => { await tx.delete(rolePermissions).where(eq(rolePermissions.roleId, input.roleId)); if (input.permissionIds.length) await tx.insert(rolePermissions).values(input.permissionIds.map(permissionId => ({ id: randomUUID(), roleId: input.roleId, permissionId }))); }); await audit(db, { municipalityId, actorId: ctx.user.id, action: "UPDATE", module: "administration", entityType: "role_permissions", entityId: input.roleId, afterValue: input }); return { success: true }; }),
+    assignRole: protectedProcedure.input(z.object({ userId: z.number().int().positive(), roleId: z.string().uuid(), expiresAt: z.coerce.date().optional() })).mutation(async ({ ctx, input }) => { requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb(); mustGet((await db.select({ id: users.id }).from(users).where(and(eq(users.id, input.userId), eq(users.municipalityId, municipalityId))).limit(1))[0], "Utilisateur hors mairie."); mustGet((await db.select({ id: roles.id }).from(roles).where(and(eq(roles.id, input.roleId), or(eq(roles.municipalityId, municipalityId), isNull(roles.municipalityId)))).limit(1))[0], "Rôle introuvable."); const id = randomUUID(); await db.insert(userRoles).values({ id, ...input, assignedBy: ctx.user.id }); await audit(db, { municipalityId, actorId: ctx.user.id, action: "ASSIGN", module: "administration", entityType: "user_role", entityId: id, afterValue: input }); return { id }; }),
+    assignTerritory: protectedProcedure.input(z.object({ userId: z.number().int().positive(), territoryType: z.enum(["SECTOR", "ZONE", "MARKET", "MARKET_LOCATION"]), territoryId: z.string().uuid(), startDate: z.coerce.date(), endDate: z.coerce.date().optional() })).mutation(async ({ ctx, input }) => { requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb(); mustGet((await db.select({ id: users.id }).from(users).where(and(eq(users.id, input.userId), eq(users.municipalityId, municipalityId))).limit(1))[0], "Utilisateur hors mairie."); const id = randomUUID(); await db.insert(userTerritoryAssignments).values({ id, ...input, assignedBy: ctx.user.id }); await audit(db, { municipalityId, actorId: ctx.user.id, action: "ASSIGN", module: "administration", entityType: "territory_assignment", entityId: id, afterValue: input }); return { id }; }),
+  }),
+
+  sync: router({
+    status: protectedProcedure.query(async ({ ctx }) => { const municipalityId = await requireAccess(ctx.user, "synchronization", "read"); const db = await requireDb(); return db.select().from(syncOperations).where(eq(syncOperations.municipalityId, municipalityId)).orderBy(desc(syncOperations.createdAt)).limit(100); }),
+    conflicts: protectedProcedure.query(async ({ ctx }) => {
+      const municipalityId = await requireAccess(ctx.user, "synchronization", "read"); const db = await requireDb();
+      return db.select({ conflict: syncConflicts, operation: syncOperations }).from(syncConflicts).innerJoin(syncOperations, eq(syncConflicts.syncOperationId, syncOperations.id)).where(eq(syncOperations.municipalityId, municipalityId)).orderBy(desc(syncConflicts.createdAt)).limit(100);
+    }),
+    register: protectedProcedure.input(z.object({ deviceId: z.string().trim().min(4).max(128), operationId: z.string().trim().min(8).max(96), entityType: z.string().trim().min(2).max(64), entityId: z.string().trim().min(2).max(64), operation: z.enum(["CREATE", "UPDATE", "CANCEL", "SUBMIT"]), payloadHash: z.string().trim().min(16).max(128), payload: z.unknown() })).mutation(async ({ ctx, input }) => {
+      const municipalityId = await requireAccess(ctx.user, "synchronization", "create"); const db = await requireDb(); const existing = await db.select().from(syncOperations).where(and(eq(syncOperations.deviceId, input.deviceId), eq(syncOperations.operationId, input.operationId))).limit(1);
+      if (existing[0]) { if (syncReplayDisposition(existing[0].payloadHash, input.payloadHash) === "IDEMPOTENT") return { status: existing[0].status, idempotent: true }; const conflictId = randomUUID(); await db.insert(syncConflicts).values({ id: conflictId, syncOperationId: existing[0].id, localPayload: input.payload, serverPayload: existing[0].result }); await db.update(syncOperations).set({ status: "CONFLICT" }).where(eq(syncOperations.id, existing[0].id)); throw new TRPCError({ code: "CONFLICT", message: "Conflit de synchronisation détecté et journalisé." }); }
+      const id = randomUUID(); await db.insert(syncOperations).values({ id, municipalityId, deviceId: input.deviceId, operationId: input.operationId, entityType: input.entityType, entityId: input.entityId, operation: input.operation, payloadHash: input.payloadHash, status: "SYNCED", result: { acceptedAt: new Date().toISOString() }, processedAt: new Date() }); await audit(db, { municipalityId, actorId: ctx.user.id, action: "SYNC", module: "synchronization", entityType: input.entityType, entityId: input.entityId, afterValue: { operationId: input.operationId }, deviceId: input.deviceId }); return { id, status: "SYNCED", idempotent: false };
+    }),
+    resolveConflict: protectedProcedure.input(z.object({ conflictId: z.string().uuid(), resolution: z.enum(["SERVER", "LOCAL", "MANUAL"]) })).mutation(async ({ ctx, input }) => {
+      const municipalityId = await requireAccess(ctx.user, "synchronization", "resolve"); const db = await requireDb();
+      const record = mustGet((await db.select({ conflict: syncConflicts, operation: syncOperations }).from(syncConflicts).innerJoin(syncOperations, eq(syncConflicts.syncOperationId, syncOperations.id)).where(and(eq(syncConflicts.id, input.conflictId), eq(syncOperations.municipalityId, municipalityId))).limit(1))[0], "Conflit de synchronisation introuvable.");
+      if (record.conflict.resolution !== "PENDING") throw new TRPCError({ code: "CONFLICT", message: "Ce conflit a déjà été résolu." });
+      const plan = syncConflictResolutionPlan(input.resolution);
+      await db.transaction(async tx => {
+        await tx.update(syncConflicts).set({ resolution: input.resolution, resolvedBy: ctx.user.id, resolvedAt: new Date() }).where(eq(syncConflicts.id, record.conflict.id));
+        await tx.update(syncOperations).set({ status: plan.operationStatus, processedAt: new Date(), result: { resolution: input.resolution, localQueueAction: plan.localQueueAction, resolvedAt: new Date().toISOString() } }).where(eq(syncOperations.id, record.operation.id));
+        await tx.insert(auditLogs).values({ municipalityId, actorId: ctx.user.id, action: "RESOLVE_CONFLICT", module: "synchronization", entityType: "sync_conflict", entityId: record.conflict.id, beforeValue: { resolution: "PENDING" }, afterValue: { resolution: input.resolution }, deviceId: record.operation.deviceId });
+      });
+      return { success: true, resolution: input.resolution, localQueueAction: plan.localQueueAction };
+    }),
+  }),
+
+  audit: router({
+    list: protectedProcedure.query(async ({ ctx }) => { requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "audit", "read"); const db = await requireDb(); return db.select().from(auditLogs).where(eq(auditLogs.municipalityId, municipalityId)).orderBy(desc(auditLogs.createdAt)).limit(200); }),
+  }),
+});

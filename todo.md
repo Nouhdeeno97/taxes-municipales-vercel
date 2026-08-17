@@ -1,0 +1,45 @@
+# Project TODO
+
+- [x] Initialiser la mairie de Libreville (Gabon) et rattacher le compte administrateur à cet environnement.
+- [x] Configurer une hiérarchie territoriale de démonstration non personnelle pour Libreville, limitée aux unités nécessaires aux parcours.
+- [x] Configurer les référentiels d’activité, fiscalité et encaissement nécessaires à l’utilisation initiale, sans créer de contribuable ni d’encaissement fictif.
+- [ ] Revalider les parcours d’obligation et de reçu après l’initialisation des référentiels de Libreville.
+- [x] Rattacher la session administrateur active à Libreville et afficher l’identité municipale cohérente dans l’interface.
+- [x] Configurer une règle tarifaire fiscale opérationnelle pour Libreville, contextualisée par activité, marché et périodicité, sans créer de contribuable.
+- [x] Revalider le parcours d’obligations à partir des référentiels Libreville désormais exploitables.
+- [x] Enregistrer les barèmes journaliers Libreville confirmés, avec portée territoriale, source et journal d’audit.
+- [x] Revalider explicitement l’écran Obligations après configuration des barèmes Libreville et documenter le résultat observé.
+- [x] Créer puis vérifier un scénario authentifié minimal produisant une obligation issue des barèmes Libreville, ou documenter pourquoi aucune obligation ne peut être générée sans données supplémentaires.
+- [x] Établir les conventions de données et les états métier canonique pour les redevables, activités, obligations, paiements, versements et clôtures.
+- [x] Concevoir le schéma relationnel des mairies, territoires, utilisateurs, rôles multiples, permissions et affectations historisées.
+- [x] Concevoir le schéma relationnel des redevables personnes physiques ou morales avec identifiant unique, détection de doublons et fusion tracée.
+- [x] Concevoir le schéma relationnel des activités multiples, localisations, propriétaires, transferts et statuts historisés.
+- [x] Concevoir le schéma fiscal paramétrable : taxes, périodicités, règles tarifaires par territoire et activité, exonérations, pénalités, remises et ajustements.
+- [x] Concevoir les obligations fiscales périodiques avec calcul du restant dû, échéances et transitions immuables.
+- [x] Concevoir les transactions de paiement multi-obligations, lignes de paiement, modes mixtes et contraintes d’équilibre.
+- [x] Concevoir les reçus immuables avec QR code et journal de réimpression.
+- [x] Concevoir les versements, rapprochements, comptage de caisse, validations et clôtures quotidiennes.
+- [x] Concevoir le journal d’audit append-only pour chaque opération sensible.
+- [x] Construire les services et procédures sécurisés avec contrôle des permissions et du périmètre territorial.
+- [x] Implémenter l’autorisation granulaire par module et action à partir des rôles et permissions affectés aux utilisateurs.
+- [x] Appliquer le contrôle des périmètres territoriaux actifs aux opérations de consultation et de collecte.
+- [x] Ajouter les tests serveur de refus hors permission et hors périmètre territorial.
+- [x] Construire une interface de tableau de bord responsive pour la gestion fiscale et la collecte terrain.
+- [x] Construire les interfaces des redevables, activités, fiscalité, obligations, paiements, reçus, versements et rapports.
+- [x] Construire les interfaces d’administration des utilisateurs, rôles, permissions, territoires et paramètres fiscaux.
+- [x] Mettre en œuvre une file locale hors connexion idempotente, l’état de synchronisation et la gestion des conflits.
+- [x] Mettre en œuvre les rapports filtrables par agent, secteur, taxe et période ainsi que les exports autorisés.
+- [x] Écrire les tests unitaires des règles métier, des droits d’accès, de l’immuabilité et de l’idempotence.
+- [x] Vérifier et corriger la responsivité du tableau de bord sur mobile et tablette, puis fournir une validation visuelle multi-format.
+- [x] Ajouter et valider les écrans de gestion des obligations et de consultation des reçus immuables, avec historique d’impression.
+- [x] Implémenter et tester la détection, la présentation et la résolution contrôlée des conflits de synchronisation hors connexion.
+- [ ] Rendre accessible et valider l’initialisation de la première mairie et de ses droits administratifs avant tout paramétrage métier.
+- [ ] Valider visuellement le tableau de bord authentifié et les écrans métier sur mobile, tablette et bureau, puis documenter les résultats.
+- [ ] Tester les écrans protégés obligations et reçus avec des données authentifiées, et compléter la gestion d’obligations si nécessaire.
+- [ ] Ajouter des tests serveur du flux complet de conflit de synchronisation et finaliser la reprise contrôlée des décisions locale et manuelle.
+- [ ] Vérifier les parcours critiques, la responsivité et l’absence d’erreurs de build avant livraison.
+- [ ] Exécuter le parcours d’initialisation de première mairie et confirmer lisiblement le rattachement administrateur en base et dans l’interface.
+- [ ] Valider les écrans authentifiés sur tablette et documenter séparément les résultats bureau, tablette et mobile.
+- [ ] Vérifier obligations et reçus avec des données opérationnelles issues de parcours authentifiés complets, sans créer de données fictives.
+- [ ] Couvrir par test d’intégration les reprises idempotentes et décisions SERVER, LOCAL et MANUAL avec leurs effets de persistance et d’audit.
+- [ ] Documenter la checklist des parcours critiques réellement exécutés : démarrage, redevable, activité, obligation, encaissement, reçu, versement, clôture et synchronisation.
