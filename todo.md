@@ -58,3 +58,4 @@
 - [x] Empêcher qu’un encaissement déjà rattaché à un versement soit à nouveau proposé ou déclaré dans un autre versement.
 - [x] Valider explicitement, avec preuves documentées, l’affichage de FORM-LBV dans les écrans Redevables, Obligations, Reçus et sur le tableau de bord.
 - [x] Consigner la cause racine, la correction des données de formation et le résultat observé pour chaque liste protégée et compteur impacté.
+- [x] Rédiger un guide de test pas à pas de la plateforme, décrivant l’ordre d’utilisation, les résultats attendus et la manière de signaler les écarts.

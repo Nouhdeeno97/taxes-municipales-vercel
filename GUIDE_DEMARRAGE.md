@@ -64,3 +64,5 @@ La livraison correspond à un environnement de développement validé, avec un s
 La suite automatisée comprend 16 tests validés, couvrant les règles de montants, l’état des obligations, l’intégrité des reçus, les autorisations et les comportements de synchronisation. La compilation de production est également validée. La vérification authentifiée de l’interface confirme la visibilité du scénario dans le tableau de bord, les registres des redevables, obligations et reçus, ainsi que le rapprochement du versement.
 
 Les constats détaillés et les valeurs observées sont conservés dans [`verification-visuelle.md`](./verification-visuelle.md). Le suivi exhaustif des travaux est consigné dans [`todo.md`](./todo.md).
+
+Pour une prise en main guidée de l’interface, consultez également le [`GUIDE_TEST_UTILISATEUR.md`](./GUIDE_TEST_UTILISATEUR.md), qui détaille l’ordre de test, les résultats attendus et le format de remontée des écarts.
