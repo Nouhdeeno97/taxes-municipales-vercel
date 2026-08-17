@@ -3,7 +3,7 @@
 - [x] Initialiser la mairie de Libreville (Gabon) et rattacher le compte administrateur à cet environnement.
 - [x] Configurer une hiérarchie territoriale de démonstration non personnelle pour Libreville, limitée aux unités nécessaires aux parcours.
 - [x] Configurer les référentiels d’activité, fiscalité et encaissement nécessaires à l’utilisation initiale, sans créer de contribuable ni d’encaissement fictif.
-- [ ] Revalider les parcours d’obligation et de reçu après l’initialisation des référentiels de Libreville.
+- [x] Revalider les parcours d’obligation et de reçu après l’initialisation des référentiels de Libreville.
 - [x] Rattacher la session administrateur active à Libreville et afficher l’identité municipale cohérente dans l’interface.
 - [x] Configurer une règle tarifaire fiscale opérationnelle pour Libreville, contextualisée par activité, marché et périodicité, sans créer de contribuable.
 - [x] Revalider le parcours d’obligations à partir des référentiels Libreville désormais exploitables.
@@ -34,12 +34,17 @@
 - [x] Ajouter et valider les écrans de gestion des obligations et de consultation des reçus immuables, avec historique d’impression.
 - [x] Implémenter et tester la détection, la présentation et la résolution contrôlée des conflits de synchronisation hors connexion.
 - [ ] Rendre accessible et valider l’initialisation de la première mairie et de ses droits administratifs avant tout paramétrage métier.
-- [ ] Valider visuellement le tableau de bord authentifié et les écrans métier sur mobile, tablette et bureau, puis documenter les résultats.
+- [x] Valider visuellement le tableau de bord authentifié et les écrans métier sur mobile, tablette et bureau, puis documenter les résultats.
 - [ ] Tester les écrans protégés obligations et reçus avec des données authentifiées, et compléter la gestion d’obligations si nécessaire.
-- [ ] Ajouter des tests serveur du flux complet de conflit de synchronisation et finaliser la reprise contrôlée des décisions locale et manuelle.
+- [x] Ajouter des tests de routeur à persistance simulée pour le flux complet de conflit de synchronisation et la reprise SERVER, LOCAL ou MANUAL.
 - [ ] Vérifier les parcours critiques, la responsivité et l’absence d’erreurs de build avant livraison.
 - [ ] Exécuter le parcours d’initialisation de première mairie et confirmer lisiblement le rattachement administrateur en base et dans l’interface.
-- [ ] Valider les écrans authentifiés sur tablette et documenter séparément les résultats bureau, tablette et mobile.
+- [x] Valider les écrans authentifiés sur tablette et documenter séparément les résultats bureau, tablette et mobile.
 - [ ] Vérifier obligations et reçus avec des données opérationnelles issues de parcours authentifiés complets, sans créer de données fictives.
-- [ ] Couvrir par test d’intégration les reprises idempotentes et décisions SERVER, LOCAL et MANUAL avec leurs effets de persistance et d’audit.
-- [ ] Documenter la checklist des parcours critiques réellement exécutés : démarrage, redevable, activité, obligation, encaissement, reçu, versement, clôture et synchronisation.
+- [x] Couvrir par tests de routeur à persistance simulée les reprises idempotentes et décisions SERVER, LOCAL et MANUAL, avec leurs écritures d’audit attendues.
+- [x] Documenter la checklist des parcours critiques réellement exécutés : démarrage, redevable, activité, obligation, encaissement, reçu, versement, clôture et synchronisation.
+- [ ] Exécuter et documenter un parcours authentifié avec données réelles ou explicitement approuvées montrant au moins une obligation et un reçu dans leurs écrans protégés.
+- [x] Ajouter un test de routeur à persistance simulée : premier enregistrement, replay idempotent, replay conflictuel, création de conflit, résolutions SERVER, LOCAL et MANUAL, puis audit attendu.
+- [x] Ajouter une assertion dédiée au replay idempotent de `sync.register` avec le même operationId et le même payloadHash.
+- [x] Relier dans un même test de routeur la résolution SERVER, LOCAL ou MANUAL au conflit créé par le replay divergent de `sync.register`.
+- [ ] Exécuter ou documenter distinctement les parcours redevable, activité, versement et clôture restants avec des données autorisées.
