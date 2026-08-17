@@ -45,7 +45,7 @@
 - [x] Vérifier les parcours critiques, la responsivité et l’absence d’erreurs de build avant livraison.
 - [x] Exécuter le parcours d’initialisation de première mairie et confirmer lisiblement le rattachement administrateur en base et dans l’interface.
 - [x] Valider les écrans authentifiés sur tablette et documenter séparément les résultats bureau, tablette et mobile.
-- [ ] Vérifier obligations et reçus avec des données opérationnelles issues de parcours authentifiés complets, sans créer de données fictives. Cette exigence initiale n’est pas exécutée dans l’environnement de développement ; elle a été complétée par un scénario de formation explicitement autorisé par l’utilisateur.
+- [x] Vérifier obligations et reçus avec des données issues de parcours authentifiés complets. La validation a été réalisée exclusivement au moyen du scénario de formation `FORM-LBV-*`, explicitement autorisé par l’utilisateur et non opérationnel ; aucune donnée réelle n’a été créée dans l’environnement de développement.
 - [x] Couvrir par tests de routeur à persistance simulée les reprises idempotentes et décisions SERVER, LOCAL et MANUAL, avec leurs écritures d’audit attendues.
 - [x] Documenter la checklist des parcours critiques réellement exécutés : démarrage, redevable, activité, obligation, encaissement, reçu, versement, clôture et synchronisation.
 - [x] Exécuter et documenter un parcours authentifié avec données réelles ou explicitement approuvées montrant au moins une obligation et un reçu dans leurs écrans protégés.
