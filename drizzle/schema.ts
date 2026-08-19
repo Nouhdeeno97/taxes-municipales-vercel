@@ -35,12 +35,19 @@ export const users = mysqlTable("users", {
   name: text("name"),
   email: varchar("email", { length: 320 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
+  localUsername: varchar("localUsername", { length: 64 }),
+  passwordHash: varchar("passwordHash", { length: 255 }),
+  credentialVersion: int("credentialVersion").notNull().default(1),
+  mustChangePassword: boolean("mustChangePassword").notNull().default(false),
+  failedLoginAttempts: int("failedLoginAttempts").notNull().default(0),
+  lockedUntil: timestamp("lockedUntil"),
+  archivedAt: timestamp("archivedAt"),
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
   isActive: boolean("isActive").notNull().default(true),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
-});
+}, table => [uniqueIndex("users_local_username_unique").on(table.localUsername)]);
 
 export const roles = mysqlTable("roles", {
   id: uuid().primaryKey(),

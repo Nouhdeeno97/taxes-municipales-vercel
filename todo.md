@@ -90,3 +90,18 @@
 - [x] Implémenter un menu Aide et tutoriels alimenté par les permissions actives du compte connecté.
 - [x] Enrichir la charte bleu et blanc avec gradients discrets, relief des cartes et micro-interactions respectant la préférence de réduction des animations.
 - [x] Couvrir par tests la reconnaissance de la session testeur lorsque Manus retourne une session absente ou échoue, sans remplacer une session Manus valide.
+- [x] Définir et sécuriser le modèle de comptes locaux permanents : identifiant unique, mot de passe haché, session, durée de validité, verrouillage et récupération contrôlée.
+- [x] Permettre à l’administrateur de créer des agents et superviseurs locaux, de leur attribuer un rôle, puis de leur donner un accès permanent sans compte Manus.
+- [x] Ajouter l’activation, la désactivation, l’archivage contrôlé et la réinitialisation sécurisée de mot de passe des utilisateurs, sans supprimer leur historique d’audit.
+- [x] Afficher dans l’administration la liste complète des comptes, leurs rôles, états, dernière connexion et activités récentes, avec des actions explicites de gestion.
+- [x] Associer systématiquement les opérations sensibles à l’utilisateur, au moment d’exécution et au contexte, puis les rendre consultables dans le journal d’audit.
+- [x] Enrichir l’aide dynamique avec le contexte métier, la raison d’être de chaque fonction, des exemples réalistes non personnels, des cas d’usage et des contrôles après action.
+- [x] Ajouter des tests d’authentification locale, de cycle de vie des comptes, de protection des mots de passe, d’audit et de filtrage des tutoriels.
+- [x] Ajouter des comptes locaux permanents avec identifiant unique, mot de passe haché, expiration de session et révocation contrôlée.
+- [x] Ajouter les écrans d’administration des comptes locaux, du cycle d’activation et du journal d’audit consultable.
+- [x] Compléter l’aide métier avec contexte, utilité, exemples et cas d’usage adaptés aux utilisateurs non techniques.
+- [x] Valider les nouveaux parcours de connexion, administration, audit et aide par tests automatisés et contrôles visuels.
+- [x] Ajouter des tests de routeur à persistance simulée pour la création, la réinitialisation, l’activation, la désactivation, l’archivage et la consultation d’audit des comptes locaux.
+- [x] Afficher la dernière activité tracée de chaque compte dans le registre d’administration.
+- [x] Exécuter et documenter un parcours de recette isolé réel : création locale, connexion réussie, action, audit et aide filtrée par rôle.
+- [x] Exécuter et documenter une action métier ou administrative autorisée depuis le compte local connecté, avec son effet et sa trace d’audit distincte.

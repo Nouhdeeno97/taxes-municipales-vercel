@@ -1,6 +1,7 @@
 import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
 import type { User } from "../../drizzle/schema";
 import { sdk } from "./sdk";
+import { getLocalSessionUser } from "./localAccess";
 import { getTesterSessionUser } from "./testerAccess";
 
 export type TrpcContext = {
@@ -22,6 +23,7 @@ export async function createContext(
 
   // Selon le type de requête, l’authentification Manus peut retourner null au
   // lieu de lever une erreur ; la session testeur doit alors être vérifiée aussi.
+  if (!user) user = await getLocalSessionUser(opts.req);
   if (!user) user = await getTesterSessionUser(opts.req);
 
   return {

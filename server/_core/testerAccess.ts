@@ -5,7 +5,7 @@ import { consumeTesterAccessToken, getUserById } from "../db";
 import { ENV } from "./env";
 import { getSessionCookieOptions } from "./cookies";
 
-const TESTER_COOKIE = "tm_tester_session";
+export const TESTER_SESSION_COOKIE = "tm_tester_session";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 12;
 const encoder = new TextEncoder();
 
@@ -26,7 +26,7 @@ async function signTesterSession(userId: number) {
 }
 
 export async function getTesterSessionUser(req: Request) {
-  const raw = parse(req.headers.cookie ?? "")[TESTER_COOKIE];
+  const raw = parse(req.headers.cookie ?? "")[TESTER_SESSION_COOKIE];
   if (!raw) return null;
   try {
     const { payload } = await jwtVerify(raw, sessionKey(), { issuer: "taxes-municipales", audience: "tester-session" });
@@ -46,12 +46,12 @@ export function registerTesterAccessRoutes(app: Express) {
       return;
     }
     const session = await signTesterSession(user.id);
-    res.cookie(TESTER_COOKIE, session, { ...getSessionCookieOptions(req), maxAge: SESSION_MAX_AGE_SECONDS * 1000 });
+    res.cookie(TESTER_SESSION_COOKIE, session, { ...getSessionCookieOptions(req), maxAge: SESSION_MAX_AGE_SECONDS * 1000 });
     res.redirect("/");
   });
 
   app.post("/acces-test/deconnexion", (req: Request, res: Response) => {
-    res.clearCookie(TESTER_COOKIE, getSessionCookieOptions(req));
+    res.clearCookie(TESTER_SESSION_COOKIE, getSessionCookieOptions(req));
     res.status(204).end();
   });
 }

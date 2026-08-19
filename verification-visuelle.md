@@ -79,3 +79,31 @@ La page d’encaissement adopte une recherche serveur par identifiant national, 
 | Qualité technique | 23 tests automatisés réussis, TypeScript sans erreur et build de production réussi. |
 
 Une correction supplémentaire garantit que la session d’un testeur est recherchée non seulement lorsqu’une authentification Manus échoue, mais aussi lorsque celle-ci retourne simplement une session absente. Cette priorité est couverte par trois tests : session temporaire reconnue après retour `null`, session temporaire reconnue après erreur Manus, et conservation prioritaire d’une session Manus valide. Après cette correction, la suite totalise **26 tests réussis**, avec TypeScript et build de production valides.
+
+## Recette réelle des comptes municipaux locaux — 19 août 2026
+
+Un compte de recette municipal, clairement libellé `RECETTE COMPTE LOCAL — À ARCHIVER`, a été créé à partir du rôle municipal actif **AGNT**, avec un identifiant local temporaire. La connexion a été validée avec le mot de passe créé, puis une session locale signée a été reconnue au moyen du cookie `tm_local_session`. Le compte a obtenu **33 permissions visibles** par son rôle ; la procédure d’aide a donc bien renvoyé un ensemble de fonctions dépendant de ses droits effectifs, et non une liste globale statique.
+
+L’archivage administrateur a ensuite désactivé le compte de recette et invalidé immédiatement sa session encore présente. Aucun compte de recette actif n’a été laissé dans l’environnement. Le journal d’audit de la mairie conserve trois événements sur le même identifiant utilisateur : création par l’administrateur, `LOCAL_LOGIN` par le compte local, puis archivage par l’administrateur.
+
+| Contrôle local authentifié | Résultat observé |
+|---|---|
+| Création avec identifiant et mot de passe haché | Réussie ; le compte local a été créé avec un rôle municipal actif. |
+| Connexion et session locale | Réussies ; le cookie signé de session locale a été émis puis reconnu. |
+| Aide filtrée par permissions | Réussie ; 33 permissions actives ont été retournées pour le compte de recette. |
+| Traçabilité | Réussie ; les événements `CREATE`, `LOCAL_LOGIN` et `ARCHIVE` sont présents sur le même utilisateur. |
+| Révocation | Réussie ; la session a été refusée après l’archivage du compte. |
+
+La validation automatisée actualisée couvre **34 tests sur 10 fichiers**. La compilation de production est valide. La capture de `/connexion` a redirigé vers le tableau de bord car une session administrateur était déjà active ; le formulaire public reste accessible dès qu’aucune session valide n’est présente.
+
+### Action autorisée exécutée par le compte local
+
+Une seconde recette éphémère a confirmé qu’un compte local connecté ne se limite pas à consulter ses droits. Après connexion, le compte disposant du rôle **AGNT** a exécuté la synchronisation autorisée `synchronization.register` sur un objet de recette local. L’opération a été acceptée avec l’état `SYNCED` et l’absence de doublon. Le journal d’audit porte ensuite, pour ce même compte, les entrées `administration.LOCAL_LOGIN` et `synchronization.SYNC`. Le compte a enfin été archivé ; sa session locale a été refusée immédiatement après révocation.
+
+| Élément vérifié | Résultat |
+|---|---|
+| Rôle de recette | **AGNT**, avec 33 permissions visibles dans l’aide dynamique. |
+| Action exécutée après connexion | `synchronization.register` sur une opération de recette contrôlée. |
+| Effet métier | Opération enregistrée avec le statut `SYNCED` et `idempotent: false` lors du premier envoi. |
+| Preuve d’audit | `LOCAL_LOGIN` puis `SYNC` associés au compte local ayant effectué l’action. |
+| Nettoyage | Compte de recette archivé et session invalidée ; aucun accès de test actif conservé. |
