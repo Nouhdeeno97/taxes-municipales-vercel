@@ -38,6 +38,24 @@ export async function requireAccess(user: User | null | undefined, module: strin
   return municipalityId;
 }
 
+export async function getActivePermissionGrants(user: User | null | undefined): Promise<PermissionGrant[]> {
+  const municipalityId = requireMunicipality(user);
+  if (user?.role === "admin") return [{ module: "*", action: "*" }];
+  const db = await requireDb();
+  return db
+    .select({ module: permissions.module, action: permissions.action })
+    .from(userRoles)
+    .innerJoin(roles, eq(userRoles.roleId, roles.id))
+    .innerJoin(rolePermissions, eq(rolePermissions.roleId, roles.id))
+    .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
+    .where(and(
+      eq(userRoles.userId, user!.id),
+      eq(roles.isActive, true),
+      or(eq(roles.municipalityId, municipalityId), isNull(roles.municipalityId)),
+      or(isNull(userRoles.expiresAt), gt(userRoles.expiresAt, new Date())),
+    ));
+}
+
 export async function requireTerritoryAccess(user: User | null | undefined, territoryType: "SECTOR" | "ZONE" | "MARKET" | "MARKET_LOCATION", territoryId: string | undefined) {
   if (!territoryId || user?.role === "admin") return;
   const db = await requireDb();

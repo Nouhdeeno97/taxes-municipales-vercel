@@ -1,7 +1,7 @@
 import { and, eq, gt, isNull, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { invitationRoles, InsertUser, roles, userInvitations, userRoles, users } from "../drizzle/schema";
-import { randomUUID } from "crypto";
+import { invitationRoles, InsertUser, roles, testerAccessTokens, userInvitations, userRoles, users } from "../drizzle/schema";
+import { createHash, randomBytes, randomUUID } from "crypto";
 import { ENV } from "./_core/env";
 
 let database: ReturnType<typeof drizzle> | null = null;
@@ -50,6 +50,66 @@ export async function getUserByOpenId(openId: string) {
   return result[0];
 }
 
+export async function getUserById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
+  return result[0];
+}
+
+export function hashTesterAccessToken(token: string) {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+export async function createTesterAccess(input: {
+  municipalityId: string;
+  displayName: string;
+  email?: string | null;
+  roleIds: string[];
+  createdBy: number;
+  expiresAt: Date;
+}) {
+  const db = await requireDb();
+  const rawToken = randomBytes(32).toString("base64url");
+  const userOpenId = `tester:${randomUUID()}`;
+  const userId = await db.transaction(async tx => {
+    const inserted = await tx.insert(users).values({
+      openId: userOpenId,
+      municipalityId: input.municipalityId,
+      name: input.displayName,
+      email: input.email ? normalizeInvitationEmail(input.email) : null,
+      loginMethod: "temporary-link",
+      role: "user",
+      isActive: true,
+      lastSignedIn: new Date(),
+    });
+    const id = Number(inserted[0].insertId);
+    for (const roleId of input.roleIds) {
+      await tx.insert(userRoles).values({ id: randomUUID(), userId: id, roleId, assignedBy: input.createdBy });
+    }
+    await tx.insert(testerAccessTokens).values({
+      id: randomUUID(), userId: id, tokenHash: hashTesterAccessToken(rawToken), expiresAt: input.expiresAt, createdBy: input.createdBy,
+    });
+    return id;
+  });
+  return { userId, rawToken };
+}
+
+/** Consomme une seule fois le lien et renvoie le compte de test encore actif. */
+export async function consumeTesterAccessToken(rawToken: string) {
+  const db = await requireDb();
+  const now = new Date();
+  const token = (await db.select().from(testerAccessTokens).where(and(
+    eq(testerAccessTokens.tokenHash, hashTesterAccessToken(rawToken)),
+    isNull(testerAccessTokens.redeemedAt), isNull(testerAccessTokens.revokedAt), gt(testerAccessTokens.expiresAt, now),
+  )).limit(1))[0];
+  if (!token) return undefined;
+  const updated = await db.update(testerAccessTokens).set({ redeemedAt: now }).where(and(eq(testerAccessTokens.id, token.id), isNull(testerAccessTokens.redeemedAt)));
+  if (!updated[0]?.affectedRows) return undefined;
+  const user = await getUserById(token.userId);
+  return user?.isActive ? user : undefined;
+}
+
 export function normalizeInvitationEmail(email: string) {
   return email.trim().toLowerCase();
 }
@@ -60,13 +120,13 @@ export async function activateInvitationForUser(openId: string, email: string | 
   const db = await getDb();
   if (!db) return undefined;
   const user = await getUserByOpenId(openId);
-  if (!user || user.municipalityId) return undefined;
+  if (!user) return undefined;
   const invitation = (await db.select().from(userInvitations).where(and(
     eq(userInvitations.email, normalizeInvitationEmail(email)),
     eq(userInvitations.status, "PENDING"),
     or(isNull(userInvitations.expiresAt), gt(userInvitations.expiresAt, new Date())),
   )).limit(1))[0];
-  if (!invitation) return undefined;
+  if (!invitation || (user.municipalityId && user.municipalityId !== invitation.municipalityId)) return undefined;
 
   const assignedRoles = await db.select({ roleId: invitationRoles.roleId }).from(invitationRoles)
     .innerJoin(roles, eq(invitationRoles.roleId, roles.id))

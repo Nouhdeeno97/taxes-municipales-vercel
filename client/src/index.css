@@ -130,6 +130,7 @@
   body {
     @apply bg-background text-foreground;
     font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+    background-image: radial-gradient(circle at 92% -8%, rgba(147, 197, 253, .22), transparent 28rem), linear-gradient(180deg, #fbfdff 0%, #f3f7ff 100%);
   }
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]),
@@ -184,5 +185,33 @@
       padding-right: 2rem;
       max-width: 1280px; /* Standard content width */
     }
+  }
+}
+
+::selection {
+  background: #bfdbfe;
+  color: #172554;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  button,
+  a,
+  [role="button"] {
+    transition: color 160ms cubic-bezier(.23, 1, .32, 1), background-color 160ms cubic-bezier(.23, 1, .32, 1), border-color 160ms cubic-bezier(.23, 1, .32, 1), box-shadow 160ms cubic-bezier(.23, 1, .32, 1), transform 160ms cubic-bezier(.23, 1, .32, 1);
+  }
+
+  button:not(:disabled):active,
+  [role="button"]:not([aria-disabled="true"]):active {
+    transform: scale(.975);
+  }
+
+  [data-slot="card"] {
+    transition: border-color 200ms cubic-bezier(.23, 1, .32, 1), box-shadow 200ms cubic-bezier(.23, 1, .32, 1), transform 200ms cubic-bezier(.23, 1, .32, 1);
+  }
+
+  [data-slot="card"]:hover {
+    border-color: #bfdbfe;
+    box-shadow: 0 14px 28px rgba(30, 64, 175, .08);
+    transform: translateY(-2px);
   }
 }

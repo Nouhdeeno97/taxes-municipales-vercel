@@ -90,6 +90,18 @@ export const invitationRoles = mysqlTable("invitation_roles", {
   roleId: uuid("roleId").notNull().references(() => roles.id),
 }, table => [uniqueIndex("invitation_role_unique").on(table.invitationId, table.roleId)]);
 
+/** Lien à usage unique réservé aux testeurs sans identité Manus OAuth. */
+export const testerAccessTokens = mysqlTable("tester_access_tokens", {
+  id: uuid().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id),
+  tokenHash: varchar("tokenHash", { length: 128 }).notNull().unique(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  redeemedAt: timestamp("redeemedAt"),
+  revokedAt: timestamp("revokedAt"),
+  createdBy: int("createdBy").notNull().references(() => users.id),
+  createdAt: createdAt(),
+}, table => [index("tester_access_user_idx").on(table.userId), index("tester_access_expiry_idx").on(table.expiresAt)]);
+
 export const rolePermissions = mysqlTable("role_permissions", {
   id: uuid().primaryKey(),
   roleId: uuid("roleId").notNull().references(() => roles.id),

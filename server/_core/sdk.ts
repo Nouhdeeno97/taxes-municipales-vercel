@@ -311,6 +311,17 @@ class SDKServer {
       throw ForbiddenError("User not found");
     }
 
+    // Une invitation peut avoir été créée après la première connexion OAuth.
+    // La consommer ici rend l’activation idempotente et ne dépend plus du seul callback.
+    const activation = await db.activateInvitationForUser(user.openId, user.email);
+    if (activation) {
+      user = await db.getUserByOpenId(user.openId);
+    }
+
+    if (!user) {
+      throw ForbiddenError("User not found after invitation activation");
+    }
+
     await db.upsertUser({
       openId: user.openId,
       lastSignedIn: signedInAt,

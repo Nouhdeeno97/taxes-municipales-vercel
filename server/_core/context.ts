@@ -1,6 +1,7 @@
 import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
 import type { User } from "../../drizzle/schema";
 import { sdk } from "./sdk";
+import { getTesterSessionUser } from "./testerAccess";
 
 export type TrpcContext = {
   req: CreateExpressContextOptions["req"];
@@ -16,8 +17,8 @@ export async function createContext(
   try {
     user = await sdk.authenticateRequest(opts.req);
   } catch (error) {
-    // Authentication is optional for public procedures.
-    user = null;
+    // Les testeurs sans compte Manus utilisent une session temporaire séparée.
+    user = await getTesterSessionUser(opts.req);
   }
 
   return {

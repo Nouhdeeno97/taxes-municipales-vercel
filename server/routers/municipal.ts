@@ -44,10 +44,10 @@ import {
   users,
   zones,
 } from "../../drizzle/schema";
-import { requireDb } from "../db";
-import { requireAccess, requireTerritoryAccess } from "../access";
+import { createTesterAccess, requireDb } from "../db";
+import { getActivePermissionGrants, requireAccess, requireTerritoryAccess } from "../access";
 import { amountsMatch, isPaymentEligibleForDeposit, nextObligationState, receiptIntegrityHash, syncConflictResolutionPlan, syncReplayDisposition } from "../domainRules";
-import { requireAdmin, requireMunicipality } from "../policies";
+import { requireAdmin, requireMunicipality, requirePlatformAdmin } from "../policies";
 import { protectedProcedure, router } from "../_core/trpc";
 import { previewTaxAmount } from "../../shared/taxCalculation";
 
@@ -87,10 +87,13 @@ const taxpayerInput = z.object({
 });
 
 export const municipalRouter = router({
+  help: router({
+    permissions: protectedProcedure.query(async ({ ctx }) => getActivePermissionGrants(ctx.user)),
+  }),
   bootstrap: protectedProcedure
     .input(z.object({ code: z.string().trim().min(2).max(32), name: z.string().trim().min(3).max(180) }))
     .mutation(async ({ ctx, input }) => {
-      requireAdmin(ctx.user);
+      requirePlatformAdmin(ctx.user);
       const db = await requireDb();
       if (ctx.user.municipalityId) {
         throw new TRPCError({ code: "CONFLICT", message: "Ce compte est déjà rattaché à une mairie." });
@@ -149,6 +152,21 @@ export const municipalRouter = router({
           eq(taxpayers.municipalityId, municipalityId),
           search ? or(like(taxpayers.reference, `%${search}%`), like(taxpayers.firstName, `%${search}%`), like(taxpayers.lastName, `%${search}%`), like(taxpayers.legalName, `%${search}%`)) : undefined,
         )).orderBy(desc(taxpayers.createdAt)).limit(100);
+    }),
+    searchForPayment: protectedProcedure.input(z.object({ query: z.string().trim().min(2).max(120) })).query(async ({ ctx, input }) => {
+      const municipalityId = await requireAccess(ctx.user, "payments", "create");
+      const db = await requireDb();
+      const query = input.query;
+      return db.select({ id: taxpayers.id, reference: taxpayers.reference, firstName: taxpayers.firstName, lastName: taxpayers.lastName, legalName: taxpayers.legalName, nationalId: taxpayers.nationalId, taxId: taxpayers.taxId, status: taxpayers.status })
+        .from(taxpayers)
+        .where(and(eq(taxpayers.municipalityId, municipalityId), eq(taxpayers.status, "ACTIVE"), or(
+          like(taxpayers.reference, `%${query}%`),
+          like(taxpayers.nationalId, `%${query}%`),
+          like(taxpayers.taxId, `%${query}%`),
+          like(taxpayers.firstName, `%${query}%`),
+          like(taxpayers.lastName, `%${query}%`),
+          like(taxpayers.legalName, `%${query}%`),
+        ))).orderBy(desc(taxpayers.createdAt)).limit(20);
     }),
     duplicates: protectedProcedure.input(taxpayerInput).query(async ({ ctx, input }) => {
       const municipalityId = await requireAccess(ctx.user, "taxpayers", "read");
@@ -482,7 +500,7 @@ export const municipalRouter = router({
   }),
 
   administration: router({
-    users: protectedProcedure.query(async ({ ctx }) => { requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb(); return db.select({ id: users.id, name: users.name, email: users.email, role: users.role, isActive: users.isActive, roles: sql<string>`group_concat(distinct ${roles.label} separator ', ')` }).from(users).leftJoin(userRoles, and(eq(userRoles.userId, users.id), isNull(userRoles.expiresAt))).leftJoin(roles, eq(userRoles.roleId, roles.id)).where(and(eq(users.municipalityId, municipalityId), isNotNull(users.openId), isNotNull(users.email), ne(users.email, "NULL"))).groupBy(users.id).orderBy(users.name); }),
+    users: protectedProcedure.query(async ({ ctx }) => { requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb(); return db.select({ id: users.id, name: users.name, email: users.email, role: users.role, isActive: users.isActive, accessMode: sql<string>`case when ${users.openId} like 'tester:%' then 'LIEN TEMPORAIRE' else 'MANUS OAuth' end`, roles: sql<string>`group_concat(distinct ${roles.label} separator ', ')` }).from(users).leftJoin(userRoles, and(eq(userRoles.userId, users.id), isNull(userRoles.expiresAt))).leftJoin(roles, eq(userRoles.roleId, roles.id)).where(and(eq(users.municipalityId, municipalityId), isNotNull(users.openId), or(and(isNotNull(users.email), ne(users.email, "NULL")), like(users.openId, "tester:%")))).groupBy(users.id).orderBy(users.name); }),
     roles: protectedProcedure.query(async ({ ctx }) => { requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb(); return db.select().from(roles).where(or(eq(roles.municipalityId, municipalityId), isNull(roles.municipalityId))).orderBy(roles.label); }),
     permissions: protectedProcedure.query(async ({ ctx }) => { requireAdmin(ctx.user); await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb(); return db.select().from(permissions).orderBy(permissions.module, permissions.action); }),
     rolePermissionMatrix: protectedProcedure.query(async ({ ctx }) => { requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb(); return db.select({ roleId: rolePermissions.roleId, permissionId: rolePermissions.permissionId }).from(rolePermissions).innerJoin(roles, eq(rolePermissions.roleId, roles.id)).where(or(eq(roles.municipalityId, municipalityId), isNull(roles.municipalityId))); }),
@@ -494,6 +512,7 @@ export const municipalRouter = router({
     assignRole: protectedProcedure.input(z.object({ userId: z.number().int().positive(), roleId: z.string().uuid(), expiresAt: z.coerce.date().optional() })).mutation(async ({ ctx, input }) => { requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb(); mustGet((await db.select({ id: users.id }).from(users).where(and(eq(users.id, input.userId), eq(users.municipalityId, municipalityId))).limit(1))[0], "Utilisateur hors mairie."); mustGet((await db.select({ id: roles.id }).from(roles).where(and(eq(roles.id, input.roleId), or(eq(roles.municipalityId, municipalityId), isNull(roles.municipalityId)))).limit(1))[0], "Rôle introuvable."); const id = randomUUID(); await db.insert(userRoles).values({ id, ...input, assignedBy: ctx.user.id }).onDuplicateKeyUpdate({ set: { expiresAt: input.expiresAt, assignedBy: ctx.user.id } }); await audit(db, { municipalityId, actorId: ctx.user.id, action: "ASSIGN", module: "administration", entityType: "user_role", entityId: id, afterValue: input }); return { id }; }),
     setUserActive: protectedProcedure.input(z.object({ userId: z.number().int().positive(), isActive: z.boolean() })).mutation(async ({ ctx, input }) => { requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "administration", "manage"); if (ctx.user.id === input.userId && !input.isActive) throw new TRPCError({ code: "BAD_REQUEST", message: "Vous ne pouvez pas désactiver votre propre compte." }); const db = await requireDb(); mustGet((await db.select({ id: users.id }).from(users).where(and(eq(users.id, input.userId), eq(users.municipalityId, municipalityId))).limit(1))[0], "Utilisateur hors mairie."); await db.update(users).set({ isActive: input.isActive }).where(eq(users.id, input.userId)); await audit(db, { municipalityId, actorId: ctx.user.id, action: input.isActive ? "ACTIVATE" : "DEACTIVATE", module: "administration", entityType: "user", entityId: String(input.userId), afterValue: input }); return { success: true }; }),
     createInvitation: protectedProcedure.input(z.object({ email: z.string().trim().email().max(320), displayName: z.string().trim().min(2).max(180).optional(), roleIds: z.array(z.string().uuid()).min(1).max(20), expiresAt: z.coerce.date().optional() })).mutation(async ({ ctx, input }) => { requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb(); const email = input.email.toLowerCase(); const roleIds = Array.from(new Set(input.roleIds)); const selected = await db.select({ id: roles.id }).from(roles).where(and(inArray(roles.id, roleIds), or(eq(roles.municipalityId, municipalityId), isNull(roles.municipalityId)))); if (selected.length !== roleIds.length) throw new TRPCError({ code: "BAD_REQUEST", message: "Un rôle sélectionné est introuvable ou hors mairie." }); const existing = (await db.select().from(userInvitations).where(and(eq(userInvitations.municipalityId, municipalityId), eq(userInvitations.email, email))).limit(1))[0]; if (existing?.status === "ACTIVATED") throw new TRPCError({ code: "CONFLICT", message: "Ce compte est déjà activé dans la mairie. Modifiez directement ses rôles." }); const invitationId = existing?.id ?? randomUUID(); await db.transaction(async tx => { if (existing) await tx.update(userInvitations).set({ displayName: input.displayName ?? null, status: "PENDING", invitedBy: ctx.user.id, expiresAt: input.expiresAt ?? null }).where(eq(userInvitations.id, invitationId)); else await tx.insert(userInvitations).values({ id: invitationId, municipalityId, email, displayName: input.displayName ?? null, invitedBy: ctx.user.id, expiresAt: input.expiresAt ?? null }); await tx.delete(invitationRoles).where(eq(invitationRoles.invitationId, invitationId)); await tx.insert(invitationRoles).values(roleIds.map(roleId => ({ id: randomUUID(), invitationId, roleId }))); }); await audit(db, { municipalityId, actorId: ctx.user.id, action: "INVITE", module: "administration", entityType: "user_invitation", entityId: invitationId, afterValue: { ...input, email, roleIds } }); return { id: invitationId, email }; }),
+    createTesterAccess: protectedProcedure.input(z.object({ displayName: z.string().trim().min(2).max(180), email: z.string().trim().email().max(320).optional().or(z.literal("")), roleIds: z.array(z.string().uuid()).min(1).max(20), expiresInHours: z.number().int().min(1).max(168).default(24) })).mutation(async ({ ctx, input }) => { requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb(); const roleIds = Array.from(new Set(input.roleIds)); const selected = await db.select({ id: roles.id }).from(roles).where(and(inArray(roles.id, roleIds), or(eq(roles.municipalityId, municipalityId), isNull(roles.municipalityId)))); if (selected.length !== roleIds.length) throw new TRPCError({ code: "BAD_REQUEST", message: "Un rôle sélectionné est introuvable ou hors mairie." }); const expiresAt = new Date(Date.now() + input.expiresInHours * 60 * 60 * 1000); const access = await createTesterAccess({ municipalityId, displayName: input.displayName, email: input.email || null, roleIds, createdBy: ctx.user.id, expiresAt }); await audit(db, { municipalityId, actorId: ctx.user.id, action: "CREATE", module: "administration", entityType: "tester_access", entityId: String(access.userId), afterValue: { displayName: input.displayName, roleIds, expiresAt, authentication: "temporary_link" } }); return { userId: access.userId, path: `/acces-test/${access.rawToken}`, expiresAt }; }),
     cancelInvitation: protectedProcedure.input(z.object({ invitationId: z.string().uuid() })).mutation(async ({ ctx, input }) => { requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb(); const invitation = mustGet((await db.select().from(userInvitations).where(and(eq(userInvitations.id, input.invitationId), eq(userInvitations.municipalityId, municipalityId))).limit(1))[0], "Invitation introuvable."); if (invitation.status === "ACTIVATED") throw new TRPCError({ code: "CONFLICT", message: "Une invitation activée ne peut pas être annulée." }); await db.update(userInvitations).set({ status: "CANCELLED" }).where(eq(userInvitations.id, input.invitationId)); await audit(db, { municipalityId, actorId: ctx.user.id, action: "CANCEL", module: "administration", entityType: "user_invitation", entityId: input.invitationId, afterValue: input }); return { success: true }; }),
     assignTerritory: protectedProcedure.input(z.object({ userId: z.number().int().positive(), territoryType: z.enum(["SECTOR", "ZONE", "MARKET", "MARKET_LOCATION"]), territoryId: z.string().uuid(), startDate: z.coerce.date(), endDate: z.coerce.date().optional() })).mutation(async ({ ctx, input }) => { requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb(); mustGet((await db.select({ id: users.id }).from(users).where(and(eq(users.id, input.userId), eq(users.municipalityId, municipalityId))).limit(1))[0], "Utilisateur hors mairie."); const id = randomUUID(); await db.insert(userTerritoryAssignments).values({ id, ...input, assignedBy: ctx.user.id }); await audit(db, { municipalityId, actorId: ctx.user.id, action: "ASSIGN", module: "administration", entityType: "territory_assignment", entityId: id, afterValue: input }); return { id }; }),
   }),

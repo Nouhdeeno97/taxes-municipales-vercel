@@ -64,3 +64,16 @@ Un rafraîchissement systématique des données est déclenché au montage de l�
 Le tableau de contrôle fiscal distingue maintenant le **montant initial** d’une obligation de son **reste dû**. Ainsi, `FORM-LBV-OBL-001` affiche 1 000 XAF comme montant initial et 0 XAF comme reste dû après le règlement, sans donner l’impression qu’une obligation a été créée à montant nul.
 
 La suite de validation technique a été rejouée avec succès : **21 tests sur 6 fichiers**, contrôle TypeScript sans erreur et build de production valide. Les preuves nécessitant une action extérieure restent ouvertes : connexion d’un deuxième compte Manus OAuth préautorisé, vérification de ses droits effectifs, contrôle des fichiers téléchargés et simulation de coupure réseau sur le poste cible.
+
+## Recette des accès, de l’aide et de la collecte — 19 août 2026
+
+La version de recette présente désormais une administration guidée des accès. Elle distingue les comptes Manus OAuth des testeurs pouvant utiliser un lien temporaire à usage unique. Le cycle d’invitation Manus est désormais consommable lors d’une session déjà ouverte, et les procédures métier s’appuient sur les permissions de rôle plutôt que sur un verrou administratif global redondant.
+
+La page d’encaissement adopte une recherche serveur par identifiant national, identifiant fiscal, référence ou nom. Les reçus proposent une consultation de la pièce et une impression isolée du document, sans imprimer la page de travail. Le menu permanent « Aide et tutoriels » présente les tutoriels filtrés par les permissions actives renvoyées par le serveur.
+
+| Contrôle | Résultat |
+|---|---|
+| Navigation bleu et blanc, contrastes et interactions | Validée visuellement sur les écrans Administration, Encaissement, Reçus et Aide. |
+| Aide contextuelle | Validée visuellement avec le profil administrateur ; sa restriction à un rôle limité doit encore être testée avec un compte distinct. |
+| Recherche et impression | Implémentées et compilées ; leurs actions nécessitent une vérification manuelle dans le navigateur par un agent. |
+| Qualité technique | 23 tests automatisés réussis, TypeScript sans erreur et build de production réussi. |

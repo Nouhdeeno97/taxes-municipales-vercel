@@ -21,6 +21,7 @@ import {
   Activity,
   BarChart3,
   BookOpenCheck,
+  CircleHelp,
   ClipboardCheck,
   CloudOff,
   FileText,
@@ -105,6 +106,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
           </SidebarMenu>
         </SidebarContent>
         <SidebarFooter className="border-t border-blue-100 p-3">
+          <button onClick={() => setLocation("/aide")} className={`mb-2 flex h-10 w-full items-center gap-2 rounded-xl px-2.5 text-left text-sm font-semibold transition-all ${location === "/aide" ? "bg-blue-700 text-white shadow-[0_8px_18px_rgba(29,78,216,.22)]" : "text-blue-800 hover:bg-blue-50"}`}><CircleHelp className="size-4" /><span className="group-data-[collapsible=icon]:hidden">Aide et tutoriels</span></button>
           <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
             <Avatar className="size-8 border border-blue-200"><AvatarFallback className="bg-blue-700 text-xs text-white">{initials}</AvatarFallback></Avatar>
             <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden"><p className="truncate text-xs font-semibold text-slate-950">{user?.name || "Utilisateur municipal"}</p><p className="truncate text-[11px] text-slate-500">{user?.role === "admin" ? "Administration" : "Opérations"}</p></div>

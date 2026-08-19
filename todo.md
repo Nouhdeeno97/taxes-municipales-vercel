@@ -76,3 +76,16 @@
 - [ ] Vérifier le contenu des exports CSV et PDF sur les registres concernés, y compris les filtres appliqués.
 - [x] Afficher distinctement, dans le contrôle fiscal, le montant initial d’une obligation et son reste dû après encaissement.
 - [x] Couvrir par tests le format CSV et l’export exclusif des lignes issues du filtre actif.
+- [ ] Diagnostiquer pourquoi une préautorisation par e-mail ne rattache pas le compte Manus OAuth connecté et corriger l’activation réelle du rôle et des permissions.
+- [ ] Concevoir un accès de test sans compte Manus, sans contourner la sécurité ni créer d’identifiants fictifs non traçables, puis préciser le parcours de connexion.
+- [ ] Ajouter à l’encaissement une recherche serveur de redevables par identifiant national, identifiant fiscal, référence ou nom, avec sélection sans défilement de liste massive.
+- [ ] Remplacer l’impression de la page entière par un aperçu et une impression du seul reçu, pour première émission et réimpression.
+- [ ] Ajouter un menu Aide proposant des tutoriels pas à pas, filtrés dynamiquement selon les permissions réelles de l’utilisateur connecté.
+- [ ] Enrichir le design bleu et blanc avec hiérarchie visuelle, gradients et micro-interactions accessibles, sans dégrader la lisibilité des agents.
+- [ ] Ajouter des tests et contrôles visuels pour l’activation des accès, la recherche d’encaissement, l’impression de reçu et l’aide contextuelle.
+- [x] Implémenter la consommation tardive des préautorisations Manus OAuth et l’autorisation métier par permissions de rôle.
+- [x] Implémenter la création d’un testeur avec lien d’accès temporaire à usage unique, traçable et révocable.
+- [x] Implémenter la recherche serveur de redevables par identifiants, référence ou nom dans le parcours d’encaissement.
+- [x] Implémenter l’impression isolée de la pièce de reçu et l’aperçu préalable à l’impression.
+- [x] Implémenter un menu Aide et tutoriels alimenté par les permissions actives du compte connecté.
+- [x] Enrichir la charte bleu et blanc avec gradients discrets, relief des cartes et micro-interactions respectant la préférence de réduction des animations.
