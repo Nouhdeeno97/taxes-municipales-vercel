@@ -71,6 +71,25 @@ export const userRoles = mysqlTable("user_roles", {
   expiresAt: timestamp("expiresAt"),
 }, table => [uniqueIndex("user_role_unique").on(table.userId, table.roleId)]);
 
+export const userInvitations = mysqlTable("user_invitations", {
+  id: uuid().primaryKey(),
+  municipalityId: uuid("municipalityId").notNull().references(() => municipalities.id),
+  email: varchar("email", { length: 320 }).notNull(),
+  displayName: varchar("displayName", { length: 180 }),
+  status: mysqlEnum("status", ["PENDING", "ACTIVATED", "CANCELLED", "EXPIRED"]).notNull().default("PENDING"),
+  invitedBy: int("invitedBy").notNull().references(() => users.id),
+  activatedUserId: int("activatedUserId").references(() => users.id),
+  expiresAt: timestamp("expiresAt"),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, table => [uniqueIndex("user_invitation_municipality_email_unique").on(table.municipalityId, table.email)]);
+
+export const invitationRoles = mysqlTable("invitation_roles", {
+  id: uuid().primaryKey(),
+  invitationId: uuid("invitationId").notNull().references(() => userInvitations.id),
+  roleId: uuid("roleId").notNull().references(() => roles.id),
+}, table => [uniqueIndex("invitation_role_unique").on(table.invitationId, table.roleId)]);
+
 export const rolePermissions = mysqlTable("role_permissions", {
   id: uuid().primaryKey(),
   roleId: uuid("roleId").notNull().references(() => roles.id),

@@ -36,7 +36,29 @@ Le jeu présent est un jeu de démonstration autorisé. Toutes les références 
 | `FORM-LBV-REC-001` | Reçu final de 1 000 F CFA | Vérifier l’immuabilité du reçu. |
 | `FORM-LBV-DEP-001` | Versement validé de 1 000 F CFA | Vérifier le rapprochement et la prévention du double versement. |
 
-Pour le premier test, **n’utilisez pas les boutons de création, d’encaissement, de fusion, de versement ou de clôture**. Commencez par le parcours de consultation ci-dessous. Lorsque vous serez à l’aise, nous pourrons organiser un second test de création avec des données de formation supplémentaires, clairement étiquetées et autorisées.
+Pour le premier test, commencez par le parcours de consultation ci-dessous. Vous pouvez ensuite exécuter le parcours de création guidé ajouté dans la section suivante, uniquement avec des données de formation explicitement libellées comme telles. N’utilisez jamais de personne réelle, de société réelle ou de montant encaissé réellement pendant l’évaluation de développement.
+
+## 2 bis. Parcours de recette après les corrections
+
+Les écrans de création ont été rendus progressifs afin de lever les blocages rencontrés lors du premier test. Suivez cet ordre, sans sauter une étape : la fiscalité doit exister avant de créer une activité taxable, et une obligation doit exister avant de pouvoir encaisser.
+
+| Étape | Écran | Action à réaliser | Résultat attendu |
+|---|---|---|---|
+| 1 | Administration | Créez ou choisissez un rôle, cochez les permissions, puis enregistrez-les. | Le compteur de permissions sélectionnées et la matrice du rôle correspondent à vos choix. |
+| 2 | Administration | Préautorisez l’adresse e-mail d’un second compte Manus et choisissez ses rôles. | L’invitation apparaît « En attente ». À la première connexion du second compte, elle devient « Activée » et le compte apparaît dans la liste. |
+| 3 | Territoire | Créez, dans cet ordre, un secteur, une zone rattachée, un marché rattaché, puis un emplacement rattaché. | Chaque formulaire ne propose que les parents valides ; l’arbre final montre la relation Mairie → Secteur → Zone → Marché → Emplacement. |
+| 4 | Fiscalité | Créez les référentiels requis, puis une règle tarifaire. Utilisez la prévisualisation avant d’enregistrer. | Le montant base, une éventuelle exonération, pénalité et total attendu sont visibles avant sauvegarde. |
+| 5 | Redevables puis Activités | Créez un redevable de formation, puis une activité rattachée au marché, au type d’activité et à la règle compatible. | L’activité indique la règle applicable et l’obligation journalière initiale est générée lorsqu’une règle valide est trouvée. |
+| 6 | Obligations | Recherchez l’activité ou le redevable créé et contrôlez le montant et l’état. | L’obligation apparaît ; les filtres et exports ne montrent que les lignes demandées. |
+| 7 | Encaissement | Sélectionnez l’obligation puis préparez le paiement. | Un aperçu de reçu non définitif est affiché avant validation. |
+| 8 | Reçus | Validez seulement après avoir contrôlé l’aperçu, puis consultez le reçu final. | Le reçu final est visible, réimprimable après consultation, mais n’est ni modifiable ni supprimable. |
+| 9 | Versements puis Clôtures | Déclarez le versement à partir de l’encaissement, puis contrôlez la clôture. | Une transaction déjà versée n’est plus proposée une seconde fois ; l’écart et la clôture restent tracés. |
+
+### Test hors connexion
+
+Sur **le même navigateur et le même appareil**, consultez d’abord les écrans en ligne afin d’enregistrer les dernières données dans le cache local. Coupez ensuite la connexion réseau, rechargez l’application et revenez sur les écrans déjà consultés : la dernière version affichée doit rester disponible au lieu d’un écran vide ou de compteurs remis à zéro. Enregistrez éventuellement une action admissible hors connexion, puis rétablissez le réseau : l’indicateur de synchronisation doit reprendre la file locale sans dupliquer l’opération.
+
+> Un premier accès effectué entièrement hors connexion ne peut pas télécharger de données qui n’ont jamais été consultées. La conservation hors connexion est volontairement locale au navigateur, afin de ne pas exposer les données d’une mairie à un autre poste.
 
 ## 3. Parcours de test conseillé, écran par écran
 

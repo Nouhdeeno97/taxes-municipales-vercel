@@ -57,13 +57,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (loading) return <DashboardLayoutSkeleton />;
   if (!user) {
     return (
-      <main className="min-h-screen grid place-items-center px-5 bg-[radial-gradient(circle_at_top_left,_#f8f1df_0,_transparent_38%),linear-gradient(135deg,_#0b302b,_#155247)]">
+      <main className="min-h-screen grid place-items-center px-5 bg-[radial-gradient(circle_at_top_left,_#dbeafe_0,_transparent_38%),linear-gradient(135deg,_#092b63,_#0b5bd3)]">
         <section className="w-full max-w-md rounded-3xl border border-white/15 bg-white/95 p-8 shadow-2xl text-center">
-          <div className="mx-auto grid size-14 place-items-center rounded-2xl bg-[#0f5a4e] text-white"><Landmark className="size-7" /></div>
-          <p className="mt-6 text-xs font-bold uppercase tracking-[0.18em] text-[#ad6a1d]">Plateforme municipale</p>
-          <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[#173931]">Gestion fiscale & collecte</h1>
+          <div className="mx-auto grid size-14 place-items-center rounded-2xl bg-blue-700 text-white"><Landmark className="size-7" /></div>
+          <p className="mt-6 text-xs font-bold uppercase tracking-[0.18em] text-blue-700">Plateforme municipale</p>
+          <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">Gestion fiscale & collecte</h1>
           <p className="mt-4 text-sm leading-6 text-slate-600">Accédez aux opérations de terrain, aux contrôles de caisse et aux rapports de la mairie.</p>
-          <Button onClick={() => startLogin()} className="mt-7 h-11 w-full bg-[#0f5a4e] hover:bg-[#0b493e]">Se connecter</Button>
+          <Button onClick={() => startLogin()} className="mt-7 h-11 w-full bg-blue-700 hover:bg-blue-800">Se connecter</Button>
         </section>
       </main>
     );
@@ -82,40 +82,40 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarProvider>
-      <Sidebar collapsible="icon" className="border-r border-[#dae7e2] bg-[#0b302b] text-[#eaf3ef]">
-        <SidebarHeader className="h-[78px] border-b border-white/10 px-3 py-3">
+      <Sidebar collapsible="icon" className="border-r border-blue-100 bg-white text-slate-950 shadow-[8px_0_30px_rgba(15,75,160,.04)]">
+        <SidebarHeader className="h-[78px] border-b border-blue-100 px-3 py-3">
           <button onClick={() => setLocation("/")} className="flex w-full items-center gap-3 rounded-xl px-2 text-left">
-            <span className="grid size-9 place-items-center rounded-xl bg-[#e7a14a] text-[#183a33]"><Landmark className="size-5" /></span>
+            <span className="grid size-9 place-items-center rounded-xl bg-blue-700 text-white"><Landmark className="size-5" /></span>
             <span className="group-data-[collapsible=icon]:hidden">
               <span className="block text-sm font-semibold leading-none">TaxeMarché</span>
-              <span className="mt-1 block text-[10px] font-medium uppercase tracking-[0.16em] text-[#a8c7bd]">Opérations municipales</span>
+              <span className="mt-1 block text-[10px] font-medium uppercase tracking-[0.16em] text-slate-500">Opérations municipales</span>
             </span>
           </button>
         </SidebarHeader>
         <SidebarContent className="px-2 py-4">
-          <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.18em] text-[#8fb5a9] group-data-[collapsible=icon]:hidden">Navigation</p>
+          <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500 group-data-[collapsible=icon]:hidden">Navigation</p>
           <SidebarMenu>
             {menuItems.map(item => (
               <SidebarMenuItem key={item.path}>
-                <SidebarMenuButton isActive={location === item.path} tooltip={item.label} onClick={() => setLocation(item.path)} className="h-10 text-[#d6e8e1] hover:bg-white/10 hover:text-white data-[active=true]:bg-[#e7a14a] data-[active=true]:text-[#173931]">
+                <SidebarMenuButton isActive={location === item.path} tooltip={item.label} onClick={() => setLocation(item.path)} className="h-10 font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-800 data-[active=true]:bg-blue-700 data-[active=true]:text-white">
                   <item.icon className="size-4" /><span>{item.label}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             ))}
           </SidebarMenu>
         </SidebarContent>
-        <SidebarFooter className="border-t border-white/10 p-3">
+        <SidebarFooter className="border-t border-blue-100 p-3">
           <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
-            <Avatar className="size-8 border border-white/20"><AvatarFallback className="bg-[#16483f] text-xs text-white">{initials}</AvatarFallback></Avatar>
-            <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden"><p className="truncate text-xs font-semibold">{user?.name || "Utilisateur municipal"}</p><p className="truncate text-[11px] text-[#9ec2b7]">{user?.role === "admin" ? "Administration" : "Opérations"}</p></div>
-            <button onClick={logout} title="Se déconnecter" className="rounded-md p-1.5 text-[#a8c7bd] hover:bg-white/10 hover:text-white group-data-[collapsible=icon]:hidden"><LogOut className="size-4" /></button>
+            <Avatar className="size-8 border border-blue-200"><AvatarFallback className="bg-blue-700 text-xs text-white">{initials}</AvatarFallback></Avatar>
+            <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden"><p className="truncate text-xs font-semibold text-slate-950">{user?.name || "Utilisateur municipal"}</p><p className="truncate text-[11px] text-slate-500">{user?.role === "admin" ? "Administration" : "Opérations"}</p></div>
+            <button onClick={logout} title="Se déconnecter" className="rounded-md p-1.5 text-slate-500 hover:bg-blue-50 hover:text-blue-800 group-data-[collapsible=icon]:hidden"><LogOut className="size-4" /></button>
           </div>
         </SidebarFooter>
       </Sidebar>
-      <SidebarInset className="bg-[#f7f8f5]">
-        <header className="sticky top-0 z-20 flex h-[78px] items-center justify-between border-b border-[#e4ebe7] bg-[#f7f8f5]/95 px-4 backdrop-blur md:px-7">
-          <div className="flex items-center gap-3"><SidebarTrigger className="md:hidden" /><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-[#ad6a1d]">{municipality ? `${municipality.name} · ${municipality.code}` : "Mairie · Opérations"}</p><h2 className="mt-1 text-lg font-semibold tracking-tight text-[#173931]">{isMobile ? activeLabel : "Gestion des taxes de marché"}</h2></div></div>
-          <div title={online ? queueSize ? `${queueSize} opération(s) à synchroniser` : "Service en ligne" : `${queueSize} opération(s) conservée(s) localement`} className="flex items-center gap-2 rounded-full border border-[#dce7e2] bg-white px-2.5 py-1.5 text-xs text-[#40645c] sm:px-3">{online ? <span className="size-2 rounded-full bg-emerald-500" /> : <CloudOff className="size-3.5 text-amber-600" />}<span className="hidden sm:inline">{online ? queueSize ? `${queueSize} opération(s) à synchroniser` : "Service en ligne" : `${queueSize} opération(s) conservée(s) localement`}</span><span className="sr-only">{online ? queueSize ? `${queueSize} opération(s) à synchroniser` : "Service en ligne" : `${queueSize} opération(s) conservée(s) localement`}</span></div>
+      <SidebarInset className="bg-[#f6f9fe]">
+        <header className="sticky top-0 z-20 flex h-[78px] items-center justify-between border-b border-blue-100 bg-white/95 px-4 backdrop-blur md:px-7">
+          <div className="flex items-center gap-3"><SidebarTrigger className="md:hidden" /><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-700">{municipality ? `${municipality.name} · ${municipality.code}` : "Mairie · Opérations"}</p><h2 className="mt-1 text-lg font-semibold tracking-tight text-slate-950">{isMobile ? activeLabel : "Gestion des taxes de marché"}</h2></div></div>
+          <div title={online ? queueSize ? `${queueSize} opération(s) à synchroniser` : "Service en ligne" : `${queueSize} opération(s) conservée(s) localement`} className="flex items-center gap-2 rounded-full border border-blue-100 bg-white px-2.5 py-1.5 text-xs text-slate-700 sm:px-3">{online ? <span className="size-2 rounded-full bg-emerald-500" /> : <CloudOff className="size-3.5 text-amber-600" />}<span className="hidden sm:inline">{online ? queueSize ? `${queueSize} opération(s) à synchroniser` : "Service en ligne" : `${queueSize} opération(s) conservée(s) localement`}</span><span className="sr-only">{online ? queueSize ? `${queueSize} opération(s) à synchroniser` : "Service en ligne" : `${queueSize} opération(s) conservée(s) localement`}</span></div>
         </header>
         <main className="min-h-[calc(100vh-78px)] p-4 md:p-7">{children}</main>
       </SidebarInset>

@@ -59,3 +59,19 @@
 - [x] Valider explicitement, avec preuves documentées, l’affichage de FORM-LBV dans les écrans Redevables, Obligations, Reçus et sur le tableau de bord.
 - [x] Consigner la cause racine, la correction des données de formation et le résultat observé pour chaque liste protégée et compteur impacté.
 - [x] Rédiger un guide de test pas à pas de la plateforme, décrivant l’ordre d’utilisation, les résultats attendus et la manière de signaler les écarts.
+- [x] Diagnostiquer pourquoi les catégories et référentiels créés depuis Administration ne sont pas visibles ou sélectionnables dans les modules dépendants.
+- [ ] Remplacer la saisie manuelle des permissions par une matrice de cases à cocher, afficher les permissions réellement attribuées aux rôles et appliquer ces rôles aux utilisateurs. Interface et serveur ajoutés ; preuve de contrôle effectif par un compte affecté encore requise.
+- [ ] Ajouter un parcours sécurisé de gestion des utilisateurs compatible avec Manus OAuth : préautorisation, rattachement municipal, rôle, activation et première connexion du compte concerné. Parcours implémenté ; première connexion avec un second compte Manus encore à valider.
+- [x] Permettre la création hiérarchique complète Mairie → Secteur → Zone → Marché → Emplacement avec listes dépendantes et contrôles de parenté.
+- [ ] Clarifier et compléter le paramétrage fiscal : catégories, types de taxes, périodicités, règles tarifaires, prévisualisation du calcul et visibilité dans la génération d’obligations. Parcours guidé implémenté ; calcul et génération depuis un nouveau paramétrage à prouver de bout en bout.
+- [ ] Rendre le parcours de test complet opérationnel : redevable, activité, obligation générée, encaissement, aperçu de reçu avant validation, reçu final, versement et clôture. Interfaces implémentées ; parcours post-correction à exécuter de bout en bout avec un scénario explicitement autorisé.
+- [ ] Diagnostiquer et corriger la persistance hors connexion, le cache applicatif, la file locale et la restitution des données et compteurs à la reconnexion. Cache et file renforcés ; coupure réseau réelle et reconnexion restent à valider.
+- [x] Refondre l’interface en bleu et blanc fortement contrastés, avec une navigation lisible et des parcours adaptés aux agents non techniques.
+- [ ] Ajouter recherche, filtres contextuels et exports CSV et PDF aux registres et rapports pertinents. Fonctions ajoutées aux redevables, obligations, reçus et rapports ; contenu des exports à vérifier sur chaque registre concerné.
+- [ ] Ajouter les tests automatisés et validations visuelles couvrant les nouveaux parcours d’administration, fiscalité, collecte, hors connexion et export. Tests de base et contrôles visuels effectués ; couverture de bout en bout à compléter.
+- [ ] Tester une coupure réseau réelle après consultation des écrans en ligne sur l’appareil cible, puis confirmer la conservation locale et la synchronisation à la reconnexion.
+- [ ] Tester un compte préautorisé Manus OAuth jusqu’à sa première connexion, puis vérifier son activation, son rattachement municipal et les rôles réellement reçus.
+- [ ] Vérifier qu’une permission accordée depuis la matrice autorise l’action correspondante et qu’une permission absente la bloque côté serveur.
+- [ ] Exécuter le cycle complet post-correction avec un scénario de formation autorisé : redevable, activité taxable, obligation, encaissement, aperçu, reçu, versement et clôture.
+- [ ] Vérifier le contenu des exports CSV et PDF sur les registres concernés, y compris les filtres appliqués.
+- [x] Afficher distinctement, dans le contrôle fiscal, le montant initial d’une obligation et son reste dû après encaissement.

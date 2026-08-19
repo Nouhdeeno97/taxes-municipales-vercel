@@ -41,3 +41,26 @@ Ces validations ont été effectuées sur l’aperçu authentifié de développe
 ## Confirmation de périmètre de livraison
 
 Le 17 août 2026, le responsable du projet a confirmé que la validation avec le scénario `FORM-LBV-*` explicitement autorisé est suffisante pour clôturer la livraison de développement. Par conséquent, aucune donnée opérationnelle réelle n’a été créée ni utilisée pour les tests ; la qualification préalable à une ouverture de production reste une étape d’exploitation distincte.
+
+## Corrections de parcours et interface bleu et blanc
+
+Le 19 août 2026, les écrans modifiés ont été contrôlés sur poste bureau ainsi qu’en largeur mobile. La navigation est désormais lisible sur fond blanc, avec un état actif bleu fortement contrasté. Les espaces Administration, Territoire et Fiscalité affichent un cheminement explicite et des formulaires qui respectent l’ordre métier.
+
+| Écran | Contrôle réalisé | Résultat |
+|---|---|---|
+| Administration | Création de rôle, sélection des permissions et préautorisation OAuth. | La matrice est structurée par module et action ; l’écran explique que l’adresse préautorisée doit se connecter avec Manus OAuth pour recevoir ses rôles. |
+| Territoire | Création des quatre niveaux administrables. | Les formulaires suivent Secteur → Zone → Marché → Emplacement, avec choix obligatoire du parent pour chaque niveau enfant. |
+| Fiscalité | Paramétrage guidé. | Les étapes visibles permettent de créer les référentiels, une règle, son affectation à une activité et la génération d’obligations. |
+| Obligations | Recherche, filtre et exports. | La recherche, le filtre d’état et les boutons CSV/PDF sont présents ; le tableau reste défilable horizontalement lorsqu’il dépasse la largeur disponible. |
+| Encaissement et reçus | Cycle de collecte et consultation. | L’encaissement présente l’action de création ; le registre des reçus offre CSV/PDF et impose la consultation du reçu final avant la réimpression. |
+| Versements | Prévention du double rapprochement. | Aucun encaissement déjà versé n’est réutilisable, et l’explication est affichée à l’agent. |
+
+Le nouveau cache hors connexion conserve le shell déjà consulté et les réponses tRPC récentes dans le navigateur. Une coupure physique du réseau ne peut pas être simulée dans l’aperçu ; elle doit être retestée après consultation en ligne des écrans sur l’appareil cible.
+
+## Vérification complémentaire du 19 août 2026
+
+Un rafraîchissement systématique des données est déclenché au montage de l’application, à la reconnexion et au retour au premier plan. Les dernières données municipales consultées restent conservées localement pour permettre une lecture hors connexion ; lorsque le réseau revient, les informations d’administration sont reprises depuis le serveur plutôt que de rester bloquées sur un instantané obsolète.
+
+Le tableau de contrôle fiscal distingue maintenant le **montant initial** d’une obligation de son **reste dû**. Ainsi, `FORM-LBV-OBL-001` affiche 1 000 XAF comme montant initial et 0 XAF comme reste dû après le règlement, sans donner l’impression qu’une obligation a été créée à montant nul.
+
+La suite de validation technique a été rejouée avec succès : **21 tests sur 6 fichiers**, contrôle TypeScript sans erreur et build de production valide. Les preuves nécessitant une action extérieure restent ouvertes : connexion d’un deuxième compte Manus OAuth préautorisé, vérification de ses droits effectifs, contrôle des fichiers téléchargés et simulation de coupure réseau sur le poste cible.
