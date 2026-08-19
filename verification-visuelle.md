@@ -77,3 +77,5 @@ La page d’encaissement adopte une recherche serveur par identifiant national, 
 | Aide contextuelle | Validée visuellement avec le profil administrateur ; sa restriction à un rôle limité doit encore être testée avec un compte distinct. |
 | Recherche et impression | Implémentées et compilées ; leurs actions nécessitent une vérification manuelle dans le navigateur par un agent. |
 | Qualité technique | 23 tests automatisés réussis, TypeScript sans erreur et build de production réussi. |
+
+Une correction supplémentaire garantit que la session d’un testeur est recherchée non seulement lorsqu’une authentification Manus échoue, mais aussi lorsque celle-ci retourne simplement une session absente. Cette priorité est couverte par trois tests : session temporaire reconnue après retour `null`, session temporaire reconnue après erreur Manus, et conservation prioritaire d’une session Manus valide. Après cette correction, la suite totalise **26 tests réussis**, avec TypeScript et build de production valides.

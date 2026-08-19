@@ -89,3 +89,4 @@
 - [x] Implémenter l’impression isolée de la pièce de reçu et l’aperçu préalable à l’impression.
 - [x] Implémenter un menu Aide et tutoriels alimenté par les permissions actives du compte connecté.
 - [x] Enrichir la charte bleu et blanc avec gradients discrets, relief des cartes et micro-interactions respectant la préférence de réduction des animations.
+- [x] Couvrir par tests la reconnaissance de la session testeur lorsque Manus retourne une session absente ou échoue, sans remplacer une session Manus valide.

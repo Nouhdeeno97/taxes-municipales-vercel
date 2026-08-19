@@ -16,10 +16,13 @@ export async function createContext(
 
   try {
     user = await sdk.authenticateRequest(opts.req);
-  } catch (error) {
-    // Les testeurs sans compte Manus utilisent une session temporaire séparée.
-    user = await getTesterSessionUser(opts.req);
+  } catch {
+    // L’absence de session Manus n’est pas une erreur pour un testeur temporaire.
   }
+
+  // Selon le type de requête, l’authentification Manus peut retourner null au
+  // lieu de lever une erreur ; la session testeur doit alors être vérifiée aussi.
+  if (!user) user = await getTesterSessionUser(opts.req);
 
   return {
     req: opts.req,
