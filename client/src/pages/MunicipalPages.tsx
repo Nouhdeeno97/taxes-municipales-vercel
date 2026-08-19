@@ -15,18 +15,17 @@ import { AlertCircle, ArrowRightLeft, Banknote, ClipboardCheck, FileText, MapPin
 import { jsPDF } from "jspdf";
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { buildCsvContent, type ExportColumn, type ExportRow } from "@shared/exportFormat";
 
 export const money = (value: number | string | null | undefined) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "XOF", maximumFractionDigits: 0 }).format(Number(value ?? 0));
 export const dateText = (value: Date | string | null | undefined) => value ? new Date(value).toLocaleDateString("fr-FR") : "—";
 
-type ExportRow = Record<string, string | number | null | undefined>;
-function exportCsv(filename: string, columns: Array<{ key: string; label: string }>, rows: ExportRow[]) {
-  const escape = (value: unknown) => `"${String(value ?? "").replaceAll('"', '""')}"`;
-  const content = [columns.map(column => escape(column.label)).join(";"), ...rows.map(row => columns.map(column => escape(row[column.key])).join(";"))].join("\n");
+function exportCsv(filename: string, columns: ExportColumn[], rows: ExportRow[]) {
+  const content = buildCsvContent(columns, rows);
   const url = URL.createObjectURL(new Blob(["\uFEFF", content], { type: "text/csv;charset=utf-8" }));
   const anchor = document.createElement("a"); anchor.href = url; anchor.download = `${filename}.csv`; anchor.click(); URL.revokeObjectURL(url);
 }
-function exportPdf(filename: string, title: string, columns: Array<{ key: string; label: string }>, rows: ExportRow[]) {
+function exportPdf(filename: string, title: string, columns: ExportColumn[], rows: ExportRow[]) {
   const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   const margin = 12; const width = 297 - margin * 2; const columnWidth = width / Math.max(columns.length, 1); let y = 16;
   pdf.setFont("helvetica", "bold"); pdf.setFontSize(15); pdf.text(title, margin, y); y += 8;
@@ -36,7 +35,7 @@ function exportPdf(filename: string, title: string, columns: Array<{ key: string
   rows.forEach(row => { if (y > 190) { pdf.addPage(); y = 16; header(); } columns.forEach((column, index) => pdf.text(String(row[column.key] ?? "—").slice(0, 42), margin + index * columnWidth, y, { maxWidth: columnWidth - 2 })); y += 6; });
   pdf.save(`${filename}.pdf`);
 }
-function ExportActions({ filename, title, columns, rows }: { filename: string; title: string; columns: Array<{ key: string; label: string }>; rows: ExportRow[] }) {
+function ExportActions({ filename, title, columns, rows }: { filename: string; title: string; columns: ExportColumn[]; rows: ExportRow[] }) {
   return <div className="flex flex-wrap gap-2"><Button type="button" size="sm" variant="outline" onClick={() => exportCsv(filename, columns, rows)} disabled={!rows.length}>CSV</Button><Button type="button" size="sm" variant="outline" onClick={() => exportPdf(filename, title, columns, rows)} disabled={!rows.length}>PDF</Button></div>;
 }
 

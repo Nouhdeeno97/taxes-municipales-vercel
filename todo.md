@@ -75,3 +75,4 @@
 - [ ] Exécuter le cycle complet post-correction avec un scénario de formation autorisé : redevable, activité taxable, obligation, encaissement, aperçu, reçu, versement et clôture.
 - [ ] Vérifier le contenu des exports CSV et PDF sur les registres concernés, y compris les filtres appliqués.
 - [x] Afficher distinctement, dans le contrôle fiscal, le montant initial d’une obligation et son reste dû après encaissement.
+- [x] Couvrir par tests le format CSV et l’export exclusif des lignes issues du filtre actif.
