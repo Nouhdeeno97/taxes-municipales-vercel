@@ -32,6 +32,8 @@ import {
   ReceiptText,
   Palette,
   Settings2,
+  ShieldCheck,
+  ScrollText,
   UsersRound,
   WalletCards,
 } from "lucide-react";
@@ -51,6 +53,9 @@ const menuItems = [
   { icon: ClipboardCheck, label: "Clôtures", path: "/clotures" },
   { icon: BarChart3, label: "Rapports", path: "/rapports" },
   { icon: RefreshCw, label: "Synchronisation", path: "/synchronisation" },
+  { icon: UsersRound, label: "Utilisateurs", path: "/utilisateurs", adminOnly: true },
+  { icon: ShieldCheck, label: "Rôles et permissions", path: "/roles-permissions", adminOnly: true },
+  { icon: ScrollText, label: "Journal d’audit", path: "/audit", adminOnly: true },
   { icon: Settings2, label: "Administration", path: "/administration", adminOnly: true },
   { icon: Palette, label: "Paramètres", path: "/parametres", adminOnly: true },
 ];

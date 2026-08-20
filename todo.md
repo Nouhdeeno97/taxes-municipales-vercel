@@ -125,3 +125,11 @@
 - [x] Ajouter un test automatisé ciblé pour la recherche d’encaissement prouvant la recherche par identifiant national, identifiant fiscal, référence et nom. Recette automatisée exécutée contre la procédure de recherche réelle avec données de formation temporaires et nettoyage confirmé.
 - [x] Ajouter une recette ou un test documenté montrant explicitement l’aide contextuelle filtrée selon les permissions réelles d’un compte limité.
 - [x] Documenter séparément, avec preuve visuelle nominative, les quatre contrôles demandés : activation des accès, recherche d’encaissement, impression/réimpression de reçu et aide contextuelle. Les quatre captures authentifiées et leurs éléments visibles sont consignés dans `verification-visuelle.md`.
+- [x] Alléger le menu Administration en en retirant les blocs de gestion détaillée des utilisateurs et du journal d’audit, tout en conservant l’administration des paramètres nécessaires.
+- [x] Créer un menu Utilisateurs séparé permettant de créer, rechercher, filtrer, activer, désactiver, archiver et gérer les rôles et permissions des comptes, avec exports CSV et PDF du sous-ensemble affiché.
+- [x] Créer un menu Journal d’audit séparé permettant de consulter, rechercher, filtrer et exporter en CSV/PDF les événements d’audit municipaux selon les droits de l’utilisateur.
+- [x] Permettre, lors de la création d’une activité, de sélectionner un type d’activité existant ou d’en créer un nouveau avec un libellé et une référence réutilisables, sous contrôle de permission.
+- [x] Ajouter les tests automatisés, contrôles visuels et documentation d’aide associés aux nouveaux menus, exports et parcours de création de type d’activité.
+- [x] Réorganiser la page Utilisateurs avec un bouton « Ajouter un utilisateur » clairement placé avant le registre, suivi uniquement des recherches, filtres, exports et de la liste des comptes.
+- [x] Créer un menu séparé « Rôles et permissions » pour la matrice de droits, les rôles et leurs affectations, puis le retirer de la page Utilisateurs afin d’alléger le parcours.
+- [x] Mettre à jour l’aide, les tests, les contrôles visuels et la documentation pour refléter cette dernière séparation de gouvernance.

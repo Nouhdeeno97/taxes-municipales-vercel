@@ -223,3 +223,28 @@ Un test de routeur introduit un compte municipal local limité disposant exclusi
 |---|---|---|
 | Agent municipal limité | `dashboard.read`, `payments.create` | `administration.manage` et tous les tutoriels associés |
 | Administrateur | `*.*` | Aucune limitation fonctionnelle |
+
+## Réorganisation de la gouvernance et activités — 20 août 2026
+
+La navigation authentifiée a été contrôlée après la réorganisation en quatre écrans : **Administration**, **Utilisateurs**, **Journal d’audit** et **Activités**. L’Administration est volontairement réduite à la configuration municipale et oriente l’administrateur vers les deux espaces de contrôle dédiés. Aucun compte, rôle, permission, activité ou type supplémentaire n’a été créé durant cette vérification visuelle.
+
+| Écran contrôlé | Éléments visibles | Résultat |
+|---|---|---|
+| Administration | Cartes distinctes « Utilisateurs, rôles et permissions », « Journal d’audit », « Référentiels fiscaux et activités » et « Identité de la plateforme ». | Le menu est allégé sans perdre les accès aux opérations de gouvernance. |
+| Utilisateurs | Recherche, filtre par état, actions CSV/PDF, registre des comptes, cycle de vie, création de comptes, matrice de permissions et affectation de rôles. | Les comptes locaux, OAuth ou temporaires peuvent être administrés depuis un espace unique, avec des actions conservées côté serveur. |
+| Journal d’audit | Recherche, filtres opérationnels, colonnes de date, acteur, action, module et entité, actions CSV/PDF. | La traçabilité est lisible et exportable séparément de la configuration de plateforme. |
+| Activités | Bouton « Nouvelle activité », liste déroulante de types réutilisables et bouton « Ajouter un type ». | Le formulaire propose d’abord les types existants ; un administrateur peut ensuite ajouter une catégorie et/ou un type réutilisable sans quitter l’activité. |
+
+L’aide contextualisée a été mise à jour pour présenter ces trois parcours : gestion des utilisateurs, consultation du journal d’audit et ajout d’un type d’activité. La validation technique finale compte **49 tests réussis sur 18 fichiers**, TypeScript sans erreur et une compilation de production réussie.
+
+## Dernière simplification : comptes séparés des droits — 20 août 2026
+
+La dernière vérification visuelle confirme que la page **Utilisateurs** est désormais organisée selon l’ordre de travail attendu : un bouton **« Ajouter un utilisateur »** est visible dans l’en-tête, le bloc de création des trois modes d’accès est présenté avant la liste, puis viennent la recherche, les filtres, les exports et les actions de cycle de vie. La configuration des droits n’est plus affichée sur cette page.
+
+| Écran contrôlé | Éléments visibles | Résultat |
+|---|---|---|
+| Utilisateurs | Bouton d’ajout en tête, cartes Compte local permanent / Compte Manus OAuth / Lien temporaire, puis liste, recherche, filtre d’état, CSV, PDF, activation, désactivation, réinitialisation et archivage. | Le parcours de gestion des comptes est prioritaire et allégé. |
+| Rôles et permissions | Création de rôle, liste des rôles, matrice de cases à cocher par module, sauvegarde et affectation de rôle à un utilisateur. | La configuration des droits est clairement isolée dans son propre menu et reste contrôlée côté serveur. |
+| Administration | Cartes distinctes « Utilisateurs », « Rôles et permissions », « Journal d’audit », fiscalité et paramètres. | L’Administration joue le rôle de point d’entrée sans réintroduire les formulaires détaillés. |
+
+Le guide d’aide reprend également l’ordre recommandé : définir le rôle et ses permissions, affecter ou sélectionner ce rôle, puis créer et gérer le compte. La suite de validation confirme **49 tests réussis sur 18 fichiers** et une compilation de production réussie.
