@@ -12,6 +12,8 @@ export type QueuedOperation = {
   createdAt: string;
 };
 
+export type QueuedOperationInput = Omit<QueuedOperation, "operationId" | "createdAt"> & { operationId?: string };
+
 function readQueue(): QueuedOperation[] {
   try { return JSON.parse(localStorage.getItem(QUEUE_KEY) || "[]") as QueuedOperation[]; } catch { return []; }
 }
@@ -36,8 +38,12 @@ export function useOfflineQueue() {
     return () => { window.removeEventListener("online", refresh); window.removeEventListener("offline", refresh); window.removeEventListener("storage", refresh); };
   }, []);
 
-  const enqueue = useCallback((operation: Omit<QueuedOperation, "operationId" | "createdAt">) => {
-    const item: QueuedOperation = { ...operation, operationId: crypto.randomUUID(), createdAt: new Date().toISOString() };
+  const enqueue = useCallback((operation: QueuedOperationInput) => {
+    const operationId = operation.operationId ?? crypto.randomUUID();
+    const existing = readQueue().find(item => item.operationId === operationId);
+    if (existing) return existing;
+    const { operationId: _discardedOperationId, ...rest } = operation;
+    const item: QueuedOperation = { ...rest, operationId, createdAt: new Date().toISOString() };
     const next = [...readQueue(), item]; persistQueue(next); setQueue(next); return item;
   }, []);
 

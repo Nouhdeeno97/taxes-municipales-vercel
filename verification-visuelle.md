@@ -262,3 +262,17 @@ Le diagnostic a identifié deux causes concrètes au retour à vide signalé apr
 | Lisibilité | Une bannière « Mode hors connexion » explique que les données déjà consultées et la file locale restent disponibles jusqu’au retour du réseau. | Contrôle visuel du shell et de la page Synchronisation réalisé. |
 
 La validation automatisée compte désormais **52 tests réussis sur 20 fichiers**, TypeScript sans erreur et un build de production valide. La seule recette non automatisable est de revisiter l’application en ligne sur l’appareil cible, couper réellement le réseau, actualiser ou changer de page déjà visitée, puis créer une opération éligible et vérifier la reprise après reconnexion. Elle devra être exécutée après publication, car le navigateur de l’appareil doit installer le nouveau service worker.
+
+## Création différée de redevables — 20 août 2026
+
+Le retour de recette a confirmé que la lecture hors connexion était fonctionnelle, mais que l’ajout de données restait bloqué. Le parcours **Redevables** a donc été étendu pour traiter l’ajout local comme une opération métier différée, plutôt que comme une simple réponse mise en cache.
+
+| Étape | Comportement ajouté | Garantie |
+|---|---|---|
+| Saisie sans réseau | Le formulaire crée un redevable local avec une référence `LOCAL-…`, une date et l’état **En attente de synchronisation**. | L’entrée reste visible dans le registre de l’appareil après fermeture du formulaire. |
+| Conservation | Le contenu et l’identifiant d’opération sont stockés dans la file locale durable avec l’identifiant stable du futur redevable. | Une nouvelle tentative d’ajout de la même opération ne crée pas de second élément local. |
+| Reconnexion | La file rejoue automatiquement la création avec le même identifiant de redevable, le même identifiant d’opération et l’identifiant de l’appareil. | Le serveur accepte une seule création et reconnaît le replay identique. |
+| Divergence | Si le même identifiant local est rejoué avec un contenu différent, la synchronisation est conservée et signalée comme conflit plutôt que de créer un doublon. | L’agent conserve la donnée locale pour traitement, sans écrasement silencieux. |
+| Traçabilité | La création synchronisée est journalisée avec l’action `CREATE_OFFLINE` et inscrite dans le registre de synchronisation. | L’origine différée de l’enregistrement reste vérifiable. |
+
+Le contrôle visuel confirme que le registre Redevables et l’écran Synchronisation sont accessibles avec les repères nécessaires. La suite automatisée compte **56 tests réussis sur 22 fichiers**, TypeScript sans erreur et build de production valide. Une recette terrain reste nécessaire : créer un redevable de formation sans réseau, vérifier son badge local, rétablir la connexion et confirmer qu’il apparaît une seule fois avec une référence `RED-…`.

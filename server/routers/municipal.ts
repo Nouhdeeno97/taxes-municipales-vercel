@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, gte, inArray, isNotNull, isNull, like, lte, ne, or, sql } from "drizzle-orm";
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import { z } from "zod";
 import {
   activities,
@@ -57,7 +57,7 @@ const moneyValue = (value: number) => value.toFixed(2);
 const reference = (prefix: string) => `${prefix}-${new Date().getFullYear()}-${randomUUID().slice(0, 8).toUpperCase()}`;
 
 async function audit(
-  db: Awaited<ReturnType<typeof requireDb>>,
+  db: Pick<Awaited<ReturnType<typeof requireDb>>, "insert">,
   event: { municipalityId: string; actorId: number; action: string; module: string; entityType: string; entityId: string; beforeValue?: unknown; afterValue?: unknown; deviceId?: string },
 ) {
   await db.insert(auditLogs).values({
@@ -86,6 +86,27 @@ const taxpayerInput = z.object({
   nationalId: z.string().trim().max(96).optional(),
   taxId: z.string().trim().max(96).optional(),
 });
+
+const taxpayerCreateInput = taxpayerInput.extend({
+  clientTaxpayerId: z.string().uuid().optional(),
+  offlineOperationId: z.string().uuid().optional(),
+  deviceId: z.string().trim().min(1).max(128).optional(),
+});
+
+type TaxpayerIdentity = { type: "PERSON" | "COMPANY"; firstName?: string | null; lastName?: string | null; legalName?: string | null; nationalId?: string | null; taxId?: string | null };
+
+export function offlineTaxpayerReplayDisposition(existing: (TaxpayerIdentity & { id: string; municipalityId: string }) | undefined, input: TaxpayerIdentity, municipalityId: string, clientTaxpayerId?: string) {
+  if (!clientTaxpayerId) return { kind: "CREATE" as const, id: randomUUID() };
+  if (!existing) return { kind: "CREATE" as const, id: clientTaxpayerId };
+  const samePayload = existing.municipalityId === municipalityId
+    && existing.type === input.type
+    && (existing.firstName ?? undefined) === (input.firstName ?? undefined)
+    && (existing.lastName ?? undefined) === (input.lastName ?? undefined)
+    && (existing.legalName ?? undefined) === (input.legalName ?? undefined)
+    && (existing.nationalId ?? undefined) === (input.nationalId ?? undefined)
+    && (existing.taxId ?? undefined) === (input.taxId ?? undefined);
+  return samePayload ? { kind: "REPLAY" as const, id: existing.id } : { kind: "CONFLICT" as const, id: existing.id };
+}
 
 export const municipalRouter = router({
   branding: publicProcedure.query(async () => {
@@ -222,21 +243,35 @@ export const municipalRouter = router({
       if (!candidates.length) return [];
       return db.select().from(taxpayers).where(and(eq(taxpayers.municipalityId, municipalityId), or(...candidates))).limit(10);
     }),
-    create: protectedProcedure.input(taxpayerInput).mutation(async ({ ctx, input }) => {
+    create: protectedProcedure.input(taxpayerCreateInput).mutation(async ({ ctx, input }) => {
       const municipalityId = await requireAccess(ctx.user, "taxpayers", "create");
       const db = await requireDb();
-      const identityChecks = [input.nationalId ? eq(taxpayers.nationalId, input.nationalId) : undefined, input.taxId ? eq(taxpayers.taxId, input.taxId) : undefined].filter(Boolean) as ReturnType<typeof eq>[];
+      const { clientTaxpayerId, offlineOperationId, deviceId, ...taxpayerData } = input;
+      if (Boolean(clientTaxpayerId) !== Boolean(offlineOperationId) || Boolean(clientTaxpayerId) !== Boolean(deviceId)) throw new TRPCError({ code: "BAD_REQUEST", message: "Une création hors connexion doit fournir l’identifiant local, l’opération et l’appareil." });
+      const existingByClientId = clientTaxpayerId
+        ? await db.select().from(taxpayers).where(and(eq(taxpayers.id, clientTaxpayerId), eq(taxpayers.municipalityId, municipalityId))).limit(1)
+        : [];
+      const replay = offlineTaxpayerReplayDisposition(existingByClientId[0], taxpayerData, municipalityId, clientTaxpayerId);
+      if (replay.kind === "REPLAY") return { ...existingByClientId[0], idempotent: true };
+      if (replay.kind === "CONFLICT") throw new TRPCError({ code: "CONFLICT", message: "Cette opération hors connexion a déjà créé un redevable différent. Vérifiez le conflit avant de relancer." });
+      const identityChecks = [taxpayerData.nationalId ? eq(taxpayers.nationalId, taxpayerData.nationalId) : undefined, taxpayerData.taxId ? eq(taxpayers.taxId, taxpayerData.taxId) : undefined].filter(Boolean) as ReturnType<typeof eq>[];
       if (identityChecks.length) {
         const duplicate = await db.select({ id: taxpayers.id, reference: taxpayers.reference }).from(taxpayers).where(and(eq(taxpayers.municipalityId, municipalityId), or(...identityChecks))).limit(1);
         if (duplicate[0]) throw new TRPCError({ code: "CONFLICT", message: `Doublon détecté : ${duplicate[0].reference}. Utilisez la fusion administrative si nécessaire.` });
       }
-      if (input.type === "PERSON" && (!input.firstName || !input.lastName)) throw new TRPCError({ code: "BAD_REQUEST", message: "Le nom et le prénom sont requis pour une personne physique." });
-      if (input.type === "COMPANY" && !input.legalName) throw new TRPCError({ code: "BAD_REQUEST", message: "La raison sociale est requise pour une personne morale." });
-      const id = randomUUID();
-      const payload = { id, municipalityId, reference: reference("RED"), ...input, createdBy: ctx.user.id } as const;
-      await db.insert(taxpayers).values(payload);
-      await audit(db, { municipalityId, actorId: ctx.user.id, action: "CREATE", module: "taxpayers", entityType: "taxpayer", entityId: id, afterValue: payload });
-      return payload;
+      if (taxpayerData.type === "PERSON" && (!taxpayerData.firstName || !taxpayerData.lastName)) throw new TRPCError({ code: "BAD_REQUEST", message: "Le nom et le prénom sont requis pour une personne physique." });
+      if (taxpayerData.type === "COMPANY" && !taxpayerData.legalName) throw new TRPCError({ code: "BAD_REQUEST", message: "La raison sociale est requise pour une personne morale." });
+      const id = replay.id;
+      const payload = { id, municipalityId, reference: reference("RED"), ...taxpayerData, createdBy: ctx.user.id } as const;
+      await db.transaction(async tx => {
+        await tx.insert(taxpayers).values(payload);
+        if (offlineOperationId && deviceId) {
+          const payloadHash = createHash("sha256").update(JSON.stringify({ id, municipalityId, taxpayerData })).digest("hex");
+          await tx.insert(syncOperations).values({ id: randomUUID(), municipalityId, deviceId, operationId: offlineOperationId, entityType: "taxpayer", entityId: id, operation: "CREATE", payloadHash, status: "SYNCED", result: { taxpayerId: id } });
+        }
+        await audit(tx, { municipalityId, actorId: ctx.user.id, action: offlineOperationId ? "CREATE_OFFLINE" : "CREATE", module: "taxpayers", entityType: "taxpayer", entityId: id, afterValue: payload, deviceId });
+      });
+      return { ...payload, idempotent: false };
     }),
     merge: protectedProcedure.input(z.object({ sourceTaxpayerId: z.string().uuid(), targetTaxpayerId: z.string().uuid(), reason: z.string().trim().min(5).max(1000) })).mutation(async ({ ctx, input }) => {
       const municipalityId = await requireAccess(ctx.user, "taxpayers", "merge");
