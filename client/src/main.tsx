@@ -4,15 +4,15 @@ import { dehydrate, hydrate, QueryClient, QueryClientProvider } from "@tanstack/
 import { httpBatchLink, TRPCClientError } from "@trpc/client";
 import { createRoot } from "react-dom/client";
 import superjson from "superjson";
+import { OFFLINE_QUERY_CACHE_KEY, shouldPersistOfflineQuery } from "@shared/offlineSupport";
 import App from "./App";
 import "./index.css";
 
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => undefined));
+  window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js", { scope: "/" }).then(registration => registration.update()).catch(() => undefined));
 }
 
-const OFFLINE_QUERY_CACHE_KEY = "taxe-marche.query-cache.v2";
-const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 0, gcTime: 24 * 60 * 60 * 1000, retry: 1, refetchOnMount: "always", refetchOnReconnect: true, refetchOnWindowFocus: true, networkMode: "offlineFirst" } } });
+const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 15 * 60 * 1000, gcTime: 7 * 24 * 60 * 60 * 1000, retry: 1, refetchOnMount: false, refetchOnReconnect: true, refetchOnWindowFocus: true, networkMode: "offlineFirst" } } });
 
 try {
   const cachedState = localStorage.getItem(OFFLINE_QUERY_CACHE_KEY);
@@ -26,7 +26,7 @@ queryClient.getQueryCache().subscribe(() => {
   window.clearTimeout(persistenceTimer);
   persistenceTimer = window.setTimeout(() => {
     try {
-      const snapshot = dehydrate(queryClient, { shouldDehydrateQuery: query => query.state.status === "success" && JSON.stringify(query.queryKey).includes("municipal") });
+      const snapshot = dehydrate(queryClient, { shouldDehydrateQuery: query => query.state.status === "success" && shouldPersistOfflineQuery(query.queryKey) });
       localStorage.setItem(OFFLINE_QUERY_CACHE_KEY, JSON.stringify(snapshot));
     } catch {
       // Le stockage local peut être indisponible ou saturé : l’application reste utilisable en ligne.

@@ -248,3 +248,17 @@ La dernière vérification visuelle confirme que la page **Utilisateurs** est d�
 | Administration | Cartes distinctes « Utilisateurs », « Rôles et permissions », « Journal d’audit », fiscalité et paramètres. | L’Administration joue le rôle de point d’entrée sans réintroduire les formulaires détaillés. |
 
 Le guide d’aide reprend également l’ordre recommandé : définir le rôle et ses permissions, affecter ou sélectionner ce rôle, puis créer et gérer le compte. La suite de validation confirme **49 tests réussis sur 18 fichiers** et une compilation de production réussie.
+
+## Correction de la continuité hors connexion — 20 août 2026
+
+Le diagnostic a identifié deux causes concrètes au retour à vide signalé après une coupure réseau : le service worker n’était pas utilisé comme composant complet de continuité du shell applicatif et le cache de session ne fournissait aucun repli contrôlé lorsque la requête d’identité échouait hors ligne.
+
+| Élément renforcé | Correction appliquée | Contrôle effectué |
+|---|---|---|
+| Shell applicatif | Service worker versionné, préchargement de la page d’entrée, cache des ressources déjà visitées, repli des navigations vers `index.html` et nettoyage des caches historiques. | `sw.js` et `index.html` sont servis avec un statut HTTP 200 ; les écrans Pilotage et Synchronisation se chargent normalement après inscription du service worker. |
+| Données consultées | Les réponses tRPC municipales réussies sont persistées pendant sept jours et restaurées avant les nouvelles requêtes, avec une stratégie réseau `offlineFirst`. | Politique de persistance couverte par tests automatisés. |
+| Session déjà ouverte | Une identité locale minimale, sans hachage de mot de passe, compteur ni attribut de sécurité, évite la redirection vers Connexion lors d’une coupure. | Test dédié garantissant que les champs sensibles ne quittent pas le serveur. |
+| File d’opérations | La file durable existante conserve ses identifiants d’opération et se déclenche à la reconnexion ; les opérations rejouées restent idempotentes côté serveur. | Tests de résolution de synchronisation existants conservés. |
+| Lisibilité | Une bannière « Mode hors connexion » explique que les données déjà consultées et la file locale restent disponibles jusqu’au retour du réseau. | Contrôle visuel du shell et de la page Synchronisation réalisé. |
+
+La validation automatisée compte désormais **52 tests réussis sur 20 fichiers**, TypeScript sans erreur et un build de production valide. La seule recette non automatisable est de revisiter l’application en ligne sur l’appareil cible, couper réellement le réseau, actualiser ou changer de page déjà visitée, puis créer une opération éligible et vérifier la reprise après reconnexion. Elle devra être exécutée après publication, car le navigateur de l’appareil doit installer le nouveau service worker.
