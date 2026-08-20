@@ -63,16 +63,16 @@
 - [x] Remplacer la saisie manuelle des permissions par une matrice de cases à cocher, afficher les permissions réellement attribuées aux rôles et appliquer ces rôles aux utilisateurs. Interface et serveur ajoutés ; contrôle effectif confirmé avec un compte local à rôle limité, autorisation `dashboard.read` et refus `FORBIDDEN` de `obligations.read`.
 - [ ] Ajouter un parcours sécurisé de gestion des utilisateurs compatible avec Manus OAuth : préautorisation, rattachement municipal, rôle, activation et première connexion du compte concerné. Parcours implémenté ; première connexion avec un second compte Manus encore à valider.
 - [x] Permettre la création hiérarchique complète Mairie → Secteur → Zone → Marché → Emplacement avec listes dépendantes et contrôles de parenté.
-- [ ] Clarifier et compléter le paramétrage fiscal : catégories, types de taxes, périodicités, règles tarifaires, prévisualisation du calcul et visibilité dans la génération d’obligations. Parcours guidé implémenté ; calcul et génération depuis un nouveau paramétrage à prouver de bout en bout.
-- [ ] Rendre le parcours de test complet opérationnel : redevable, activité, obligation générée, encaissement, aperçu de reçu avant validation, reçu final, versement et clôture. Interfaces implémentées ; parcours post-correction à exécuter de bout en bout avec un scénario explicitement autorisé.
+- [x] Clarifier et compléter le paramétrage fiscal : catégories, types de taxes, périodicités, règles tarifaires, prévisualisation du calcul et visibilité dans la génération d’obligations. Le scénario `FORM-RECETTE-20260820` confirme la génération automatique d’une obligation à partir d’un nouveau paramétrage générique.
+- [x] Rendre le parcours de test complet opérationnel : redevable, activité, obligation générée, encaissement, aperçu de reçu avant validation, reçu final, versement et clôture. Le cycle post-correction est exécuté avec un scénario de formation autorisé et un écart de clôture nul.
 - [ ] Diagnostiquer et corriger la persistance hors connexion, le cache applicatif, la file locale et la restitution des données et compteurs à la reconnexion. Cache et file renforcés ; coupure réseau réelle et reconnexion restent à valider.
 - [x] Refondre l’interface en bleu et blanc fortement contrastés, avec une navigation lisible et des parcours adaptés aux agents non techniques.
-- [ ] Ajouter recherche, filtres contextuels et exports CSV et PDF aux registres et rapports pertinents. Fonctions ajoutées aux redevables, obligations, reçus et rapports ; contenu des exports à vérifier sur chaque registre concerné.
-- [ ] Ajouter les tests automatisés et validations visuelles couvrant les nouveaux parcours d’administration, fiscalité, collecte, hors connexion et export. Tests de base et contrôles visuels effectués ; couverture de bout en bout à compléter.
+- [x] Ajouter recherche, filtres contextuels et exports CSV et PDF aux registres et rapports pertinents. Fonctions et contenu d’export vérifiés sur les redevables, obligations, reçus et rapports.
+- [ ] Ajouter les tests automatisés et validations visuelles couvrant les nouveaux parcours d’administration, fiscalité, collecte, hors connexion et export. Administration, fiscalité, collecte et export sont couverts par 43 tests et contrôles visuels ; la coupure réseau réelle demeure à valider sur l’appareil cible.
 - [ ] Tester une coupure réseau réelle après consultation des écrans en ligne sur l’appareil cible, puis confirmer la conservation locale et la synchronisation à la reconnexion.
 - [ ] Tester un compte préautorisé Manus OAuth jusqu’à sa première connexion, puis vérifier son activation, son rattachement municipal et les rôles réellement reçus.
 - [x] Vérifier qu’une permission accordée depuis la matrice autorise l’action correspondante et qu’une permission absente la bloque côté serveur.
-- [ ] Exécuter le cycle complet post-correction avec un scénario de formation autorisé : redevable, activité taxable, obligation, encaissement, aperçu, reçu, versement et clôture.
+- [x] Exécuter le cycle complet post-correction avec un scénario de formation autorisé : redevable, activité taxable, obligation, encaissement, aperçu, reçu, versement et clôture.
 - [x] Vérifier le contenu des exports CSV et PDF sur les registres concernés, y compris les filtres appliqués. Les utilitaires, transformations et téléchargements complets sont contrôlés registre par registre.
 - [x] Vérifier par tests ou recette ciblée chaque registre exportable — redevables, obligations, reçus et rapports — afin de confirmer que CSV et PDF reprennent exactement les colonnes et lignes filtrées affichées.
 - [x] Ajouter une validation visuelle ou de parcours documentée montrant au moins un export réel par registre avec filtres appliqués et contenu contrôlé.
@@ -116,3 +116,6 @@
 - [x] Ajouter un espace de paramétrage de la mairie et de la plateforme : nom, identité visuelle, logo, couleur principale et choix clair/sombre.
 - [x] Ajouter les migrations, contrôles d’accès, événements d’audit et tests automatisés associés aux nouveaux réglages et parcours multi-taxes.
 - [x] Vérifier visuellement les parcours de configuration fiscale, encaissement–reçu, aide séquencée et thèmes clair/sombre avant publication.
+
+- [x] Corriger la normalisation des portées fiscales facultatives afin qu’une règle générique ne reçoive aucun périmètre territorial implicite et génère correctement ses obligations automatiques.
+- [x] Ajouter une recette et un test ciblés montrant qu’une nouvelle taxe municipale générique crée une obligation dès la création d’une activité correspondante.

@@ -422,7 +422,16 @@ export const municipalRouter = router({
       mustGet((await db.select({ id: taxTypes.id }).from(taxTypes).where(and(eq(taxTypes.id, input.taxTypeId), eq(taxTypes.municipalityId, municipalityId))).limit(1))[0], "Type de taxe introuvable.");
       mustGet((await db.select({ id: taxPeriodicities.id }).from(taxPeriodicities).where(and(eq(taxPeriodicities.id, input.periodicityId), or(eq(taxPeriodicities.municipalityId, municipalityId), isNull(taxPeriodicities.municipalityId)))).limit(1))[0], "Périodicité introuvable.");
       const id = randomUUID(); const { scope, ...rule } = input; await db.insert(taxRules).values({ id, municipalityId, ...rule, code: rule.code.toUpperCase(), baseAmount: moneyValue(rule.baseAmount), penaltyRate: moneyValue(rule.penaltyRate), createdBy: ctx.user.id });
-      if (scope) await db.insert(taxRuleScopes).values({ id: randomUUID(), taxRuleId: id, ...scope }); await audit(db, { municipalityId, actorId: ctx.user.id, action: "CREATE", module: "fiscality", entityType: "tax_rule", entityId: id, afterValue: input }); return { id, ...input };
+      if (scope) await db.insert(taxRuleScopes).values({
+        id: randomUUID(), taxRuleId: id,
+        activityTypeId: scope.activityTypeId ?? null,
+        sectorId: scope.sectorId ?? null,
+        zoneId: scope.zoneId ?? null,
+        marketId: scope.marketId ?? null,
+        marketLocationId: scope.marketLocationId ?? null,
+        taxpayerType: scope.taxpayerType ?? null,
+      });
+      await audit(db, { municipalityId, actorId: ctx.user.id, action: "CREATE", module: "fiscality", entityType: "tax_rule", entityId: id, afterValue: input }); return { id, ...input };
     }),
     setRuleActive: protectedProcedure.input(z.object({ taxRuleId: z.string().uuid(), isActive: z.boolean() })).mutation(async ({ ctx, input }) => {
       requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "fiscality", "manage"); const db = await requireDb();

@@ -147,3 +147,18 @@ Les quatre registres exportables ont été vérifiés visuellement avec leurs bo
 | Rapports | Dimension, libellé et montant ; synthèse correspondant à la période appliquée. | CSV et PDF |
 
 La suite complète compte désormais **42 tests réussis sur 14 fichiers** et la compilation de production est valide. Les captures authentifiées confirment la présence des actions CSV/PDF sur les quatre écrans.
+
+## Recette complète d’une taxe municipale configurable — 20 août 2026
+
+Une recette de formation explicitement identifiée `FORM-RECETTE-20260820` a démontré le cycle complet d’une **nouvelle taxe municipale générique**, sans limiter celle-ci à un marché. Le contrôle a mis en évidence puis corrigé un défaut de normalisation : lorsqu’un périmètre territorial n’était pas renseigné, certaines valeurs pouvaient restreindre involontairement la règle. Les critères facultatifs sont désormais enregistrés explicitement à `null`, ce qui laisse la règle applicable à toutes les activités correspondant au seul type choisi.
+
+| Étape du cycle | Preuve obtenue |
+|---|---|
+| Paramétrage | Catégorie, type de taxe et règle journalière `FORM-RECETTE-20260820-*` créés pour 1 200 XAF. |
+| Obligation automatique | Création de l’activité de formation : `automaticObligations: 1` et obligation `OBL-2026-4171CE29`. |
+| Encaissement et reçu | Paiement `PAY-2026-2030ED0E`, reçu final `REC-2026-F394E9BD`, puis réimpression de la même pièce immuable. |
+| Versement | Versement déclaré et validé avec 1 200 XAF et état `VALIDATED`. |
+| Clôture | Clôture de journée avec écart de 0 XAF. |
+| Régression évitée | Test de routeur dédié : les limites sectorielles, de zone, de marché et d’emplacement d’une règle générique sont `null`. |
+
+Le scénario porte uniquement des données de formation, sans redevable réel. Il confirme que la mairie peut introduire une taxe future, l’associer à une activité et faire produire les obligations sans changement de code.
