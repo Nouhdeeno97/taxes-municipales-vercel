@@ -86,7 +86,7 @@
 - [x] Remplacer l’impression de la page entière par un aperçu et une impression du seul reçu, pour première émission et réimpression.
 - [x] Ajouter un menu Aide proposant des tutoriels pas à pas, filtrés dynamiquement selon les permissions réelles de l’utilisateur connecté.
 - [x] Enrichir le design bleu et blanc avec hiérarchie visuelle, gradients et micro-interactions accessibles, sans dégrader la lisibilité des agents.
-- [ ] Ajouter des tests et contrôles visuels pour l’activation des accès, la recherche d’encaissement, l’impression de reçu et l’aide contextuelle. Les contrôles généraux existent ; les preuves détaillées restent à compléter.
+- [x] Ajouter des tests et contrôles visuels pour l’activation des accès, la recherche d’encaissement, l’impression de reçu et l’aide contextuelle. Quatre captures authentifiées nominatives sont consignées dans `verification-visuelle.md` ; les critères de recherche, de filtrage d’aide et de réimpression tracée sont couverts par tests automatisés.
 - [x] Implémenter la consommation tardive des préautorisations Manus OAuth et l’autorisation métier par permissions de rôle.
 - [x] Implémenter la création d’un testeur avec lien d’accès temporaire à usage unique, traçable et révocable.
 - [x] Implémenter la recherche serveur de redevables par identifiants, référence ou nom dans le parcours d’encaissement.
@@ -119,9 +119,9 @@
 
 - [x] Corriger la normalisation des portées fiscales facultatives afin qu’une règle générique ne reçoive aucun périmètre territorial implicite et génère correctement ses obligations automatiques.
 - [x] Ajouter une recette et un test ciblés montrant qu’une nouvelle taxe municipale générique crée une obligation dès la création d’une activité correspondante.
-- [ ] Ajouter un test automatisé ciblé couvrant la création OAuth provisoire sans mairie puis l’activation d’une invitation avec rattachement et rôle.
+- [x] Ajouter un test automatisé ciblé couvrant la création OAuth provisoire sans mairie puis l’activation d’une invitation avec rattachement et rôle. Le test d’intégration à persistance simulée vérifie les écritures effectives du rattachement municipal, de l’invitation activée et des rôles invités.
 - [ ] Exécuter une validation de bout en bout avec un vrai compte Manus préautorisé : invitation en attente, callback OAuth, session créée, invitation activée et mairie/rôles visibles dans l’interface.
-- [ ] Documenter la limite externe de la validation OAuth si un second compte Manus réel n’est pas disponible.
+- [x] Documenter la limite externe de la validation OAuth si un second compte Manus réel n’est pas disponible. La limite, les prérequis et le résultat attendu sont consignés dans `verification-visuelle.md` sans créer de second compte ni manipuler d’identifiant externe.
 - [x] Ajouter un test automatisé ciblé pour la recherche d’encaissement prouvant la recherche par identifiant national, identifiant fiscal, référence et nom. Recette automatisée exécutée contre la procédure de recherche réelle avec données de formation temporaires et nettoyage confirmé.
 - [x] Ajouter une recette ou un test documenté montrant explicitement l’aide contextuelle filtrée selon les permissions réelles d’un compte limité.
 - [ ] Documenter séparément, avec preuve visuelle nominative, les quatre contrôles demandés : activation des accès, recherche d’encaissement, impression/réimpression de reçu et aide contextuelle.

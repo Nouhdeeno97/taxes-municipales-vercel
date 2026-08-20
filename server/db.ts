@@ -239,12 +239,48 @@ export function normalizeInvitationEmail(email: string) {
   return email.trim().toLowerCase();
 }
 
+export type InvitationActivationPlan = {
+  userId: number;
+  municipalityId: string;
+  invitationId: string;
+  invitedBy: number | null;
+  roleIds: string[];
+};
+
+/**
+ * Établit les modifications atomiques à réaliser lors de la consommation d'une
+ * préautorisation. Le compte OAuth est volontairement créé sans mairie, puis
+ * cette seule opération lui confie son périmètre municipal et ses rôles.
+ */
+export function prepareInvitationActivationPlan(input: {
+  userId: number;
+  currentMunicipalityId: string | null;
+  invitationId: string;
+  invitationMunicipalityId: string;
+  invitedBy: number | null;
+  roleIds: string[];
+}): InvitationActivationPlan | undefined {
+  if (input.currentMunicipalityId && input.currentMunicipalityId !== input.invitationMunicipalityId) return undefined;
+  return {
+    userId: input.userId,
+    municipalityId: input.invitationMunicipalityId,
+    invitationId: input.invitationId,
+    invitedBy: input.invitedBy,
+    roleIds: input.roleIds,
+  };
+}
+
+type InvitationActivationDependencies = {
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>;
+  getUserByOpenId: typeof getUserByOpenId;
+};
+
 /** Applique une préautorisation à un compte Manus lors de sa première connexion OAuth. */
-export async function activateInvitationForUser(openId: string, email: string | null | undefined) {
+export async function activateInvitationForUser(openId: string, email: string | null | undefined, dependencies?: InvitationActivationDependencies) {
   if (!email) return undefined;
-  const db = await getDb();
+  const db = dependencies?.db ?? await getDb();
   if (!db) return undefined;
-  const user = await getUserByOpenId(openId);
+  const user = await (dependencies?.getUserByOpenId ?? getUserByOpenId)(openId);
   if (!user) return undefined;
   const invitation = (await db.select().from(userInvitations).where(and(
     eq(userInvitations.email, normalizeInvitationEmail(email)),
@@ -257,12 +293,22 @@ export async function activateInvitationForUser(openId: string, email: string | 
     .innerJoin(roles, eq(invitationRoles.roleId, roles.id))
     .where(and(eq(invitationRoles.invitationId, invitation.id), eq(roles.isActive, true)));
 
+  const activation = prepareInvitationActivationPlan({
+    userId: user.id,
+    currentMunicipalityId: user.municipalityId,
+    invitationId: invitation.id,
+    invitationMunicipalityId: invitation.municipalityId,
+    invitedBy: invitation.invitedBy,
+    roleIds: assignedRoles.map(item => item.roleId),
+  });
+  if (!activation) return undefined;
+
   await db.transaction(async tx => {
-    await tx.update(users).set({ municipalityId: invitation.municipalityId, isActive: true, role: "user" }).where(eq(users.id, user.id));
-    await tx.update(userInvitations).set({ status: "ACTIVATED", activatedUserId: user.id, updatedAt: new Date() }).where(eq(userInvitations.id, invitation.id));
-    for (const item of assignedRoles) {
-      await tx.insert(userRoles).values({ id: randomUUID(), userId: user.id, roleId: item.roleId, assignedBy: invitation.invitedBy }).onDuplicateKeyUpdate({ set: { expiresAt: null, assignedBy: invitation.invitedBy } });
+    await tx.update(users).set({ municipalityId: activation.municipalityId, isActive: true, role: "user" }).where(eq(users.id, activation.userId));
+    await tx.update(userInvitations).set({ status: "ACTIVATED", activatedUserId: activation.userId, updatedAt: new Date() }).where(eq(userInvitations.id, activation.invitationId));
+    for (const roleId of activation.roleIds) {
+      await tx.insert(userRoles).values({ id: randomUUID(), userId: activation.userId, roleId, assignedBy: activation.invitedBy }).onDuplicateKeyUpdate({ set: { expiresAt: null, assignedBy: activation.invitedBy } });
     }
   });
-  return { userId: user.id, municipalityId: invitation.municipalityId, invitationId: invitation.id };
+  return { userId: activation.userId, municipalityId: activation.municipalityId, invitationId: activation.invitationId };
 }

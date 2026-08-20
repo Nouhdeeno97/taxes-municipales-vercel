@@ -121,6 +121,19 @@ Le compte de recette a été archivé à la fin de la vérification ; sa session
 | Révocation du compte | Archivage et invalidation de session confirmés. |
 | Nettoyage du rôle | Rôle de recette temporaire désactivé après validation. |
 
+## Preuves visuelles nominatives des contrôles d’accès et de collecte — 20 août 2026
+
+Quatre captures authentifiées ont été réalisées sur l’aperçu de développement en résolution bureau **1 280 × 900**. Elles documentent les écrans correspondants sans exécuter d’action destructive ni modifier d’écriture métier.
+
+| Contrôle demandé | Écran capturé | Éléments explicitement visibles | Conclusion |
+|---|---|---|---|
+| Activation des accès | `/administration` — **Administration des accès** | La matrice de rôles et permissions, la création de comptes municipaux permanents, la préautorisation Manus, les liens temporaires, le registre « Liste et cycle de vie des utilisateurs », les états « Actif / Inactif » et l’action « Désactiver ». | Le cycle de vie et l’activation des accès sont accessibles et clairement présentés à l’administrateur. |
+| Recherche d’encaissement | `/encaissement` — **Encaissement & reçus** | Le point d’entrée « Nouvel encaissement », l’historique de collecte, les références de paiement et l’action « Voir / réimprimer » sont visibles. Le parcours ouvert depuis ce point d’entrée contient la recherche serveur du redevable par identifiant national, identifiant fiscal, référence ou nom, couverte par le test dédié. | L’accès au parcours de recherche est visible ; ses quatre critères sont validés par test automatisé. |
+| Impression et réimpression de reçu | `/recus` — **Reçus immuables** | Les références de reçus, le bouton « Consulter », la zone « Aperçu du reçu final » et l’explication selon laquelle chaque réimpression est tracée avant ouverture du dialogue d’impression. | La consultation préalable et l’impression isolée de la pièce sont distinguées de la page de travail ; l’intégrité du reçu est préservée. |
+| Aide contextuelle | `/aide` — **Comprendre avant d’agir** | Le compteur de fonctions accessibles, les permissions actives, la position dans le cycle, les neuf étapes opérationnelles et les tutoriels détaillés par fonction. | L’aide est contextualisée, séquencée et limitée aux fonctions accessibles, avec un test de filtrage de permissions complémentaire. |
+
+Les écrans ont été capturés sans réaliser de désactivation, de création de compte, d’encaissement ou de réimpression supplémentaire. Ils constituent une preuve d’interface ; les effets métier associés restent couverts par les tests automatisés et les recettes contrôlées précédentes.
+
 ## Validation de la version multi-taxes et paramétrable
 
 La plateforme a été vérifiée comme un outil de **fiscalité municipale générale**, et non comme un outil réservé aux marchés. L’espace Fiscalité présente désormais la création séquencée d’une catégorie, d’un type de taxe, d’une périodicité et d’une règle tarifaire. Il expose également l’activation et la désactivation de ces éléments, de sorte qu’une nouvelle taxe — stationnement, occupation du domaine public, publicité, licence, droit de place ou toute taxe municipale future — puisse être paramétrée sans évolution du logiciel.
@@ -173,8 +186,19 @@ La recette de première connexion OAuth a révélé un cas empêchant une invita
 | Consommation de l’invitation | État passé de `PENDING` à `ACTIVATED` après normalisation de l’e-mail. |
 | Rattachement | Mairie de l’invitation affectée au compte uniquement durant l’activation. |
 | Rôle | Rôle municipal actif de l’invitation affecté sans doublon. |
-| Régression | Test unitaire dédié de la préparation du compte OAuth provisoire réussi. |
+| Régression | Test d’intégration à persistance simulée : compte provisoire sans mairie, invitation `PENDING`, transition `ACTIVATED`, écriture effective de la mairie et de chaque rôle invité. |
 | Nettoyage | Comptes et invitations de recette retirés après contrôle. |
+
+### Limites de validation externe
+
+Le mécanisme côté serveur est validé par le test d’intégration et par les recettes contrôlées décrites ci-dessus. Deux contrôles ne peuvent toutefois pas être automatisés dans l’environnement de développement, car ils dépendent de l’équipement et d’une identité distincte de l’administrateur connecté.
+
+| Contrôle externe à réaliser | Prérequis | Résultat attendu | Statut |
+|---|---|---|---|
+| Première connexion Manus OAuth d’un compte préautorisé | Un second compte Manus réel, dont l’adresse a été préautorisée dans Administration. | Retour du callback OAuth, invitation passée à `ACTIVATED`, mairie et rôles visibles dans l’interface de ce compte. | À exécuter par l’utilisateur ou un agent habilité. |
+| Coupure et reconnexion réseau réelles | L’appareil cible, après consultation en ligne des écrans et sans effacement du navigateur. | Conservation de l’interface et des données déjà consultées, file locale idempotente, puis synchronisation sans doublon après reconnexion. | À exécuter sur l’appareil cible. |
+
+Ces limites sont de nature **externe** et ne remettent pas en cause les contrôles automatisés déjà réussis. Aucun compte supplémentaire n’a été créé et aucun identifiant personnel n’a été demandé ou stocké pour les contourner.
 
 La recette utilise le même helper appelé par le callback OAuth, mais elle ne remplace pas un essai avec un **second compte Manus réel**. Ce dernier reste explicitement requis pour vérifier la redirection OAuth, l’émission de session et l’affichage réel des droits dans le navigateur.
 
