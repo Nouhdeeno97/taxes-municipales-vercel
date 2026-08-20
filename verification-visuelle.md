@@ -134,3 +134,16 @@ Le parcours de collecte affiche maintenant le reçu final dès qu’un encaissem
 | Paramètres | Nom de mairie, nom de plateforme, logo stocké de manière sécurisée, couleur principale et modes clair, sombre ou système. |
 | Aide | Parcours numéroté « Où vous situez-vous dans le cycle ? » filtré selon les permissions du compte. |
 | Validation technique | 36 tests automatisés réussis sur 11 fichiers et compilation de production réussie. |
+
+## Validation des exports filtrés — 20 août 2026
+
+Les quatre registres exportables ont été vérifiés visuellement avec leurs boutons **CSV** et **PDF** : Redevables, Obligations fiscales, Reçus immuables et Rapports de collecte. Les contrôles automatisés déclenchent réellement les deux téléchargements pour chaque registre ; ils vérifient le nom de fichier, les intitulés de colonnes, la ligne retenue par le filtre et l’absence d’une ligne explicitement exclue. Les mêmes contrats de colonnes sont maintenant réutilisés par les boutons de l’interface et par les tests.
+
+| Registre | Colonnes et sous-ensemble contrôlés | Formats vérifiés |
+|---|---|---|
+| Redevables | Référence, redevable, type, statut et date de création ; résultat de recherche retenu. | CSV et PDF |
+| Obligations | Référence, redevable, activité, échéance, montants et état ; liste visible filtrée. | CSV et PDF |
+| Reçus | Référence, redevable, montant, date d’émission et état ; lignes du registre. | CSV et PDF |
+| Rapports | Dimension, libellé et montant ; synthèse correspondant à la période appliquée. | CSV et PDF |
+
+La suite complète compte désormais **42 tests réussis sur 14 fichiers** et la compilation de production est valide. Les captures authentifiées confirment la présence des actions CSV/PDF sur les quatre écrans.

@@ -73,7 +73,11 @@
 - [ ] Tester un compte préautorisé Manus OAuth jusqu’à sa première connexion, puis vérifier son activation, son rattachement municipal et les rôles réellement reçus.
 - [x] Vérifier qu’une permission accordée depuis la matrice autorise l’action correspondante et qu’une permission absente la bloque côté serveur.
 - [ ] Exécuter le cycle complet post-correction avec un scénario de formation autorisé : redevable, activité taxable, obligation, encaissement, aperçu, reçu, versement et clôture.
-- [ ] Vérifier le contenu des exports CSV et PDF sur les registres concernés, y compris les filtres appliqués.
+- [x] Vérifier le contenu des exports CSV et PDF sur les registres concernés, y compris les filtres appliqués. Les utilitaires, transformations et téléchargements complets sont contrôlés registre par registre.
+- [x] Vérifier par tests ou recette ciblée chaque registre exportable — redevables, obligations, reçus et rapports — afin de confirmer que CSV et PDF reprennent exactement les colonnes et lignes filtrées affichées.
+- [x] Ajouter une validation visuelle ou de parcours documentée montrant au moins un export réel par registre avec filtres appliqués et contenu contrôlé.
+- [x] Ajouter des tests par registre qui déclenchent les exports CSV et PDF avec les colonnes réelles de redevables, obligations, reçus et rapports, puis vérifient le contenu produit.
+- [x] Vérifier explicitement que les boutons d’export de chaque registre utilisent le sous-ensemble filtré affiché, et non la liste complète non filtrée.
 - [x] Afficher distinctement, dans le contrôle fiscal, le montant initial d’une obligation et son reste dû après encaissement.
 - [x] Couvrir par tests le format CSV et l’export exclusif des lignes issues du filtre actif.
 - [ ] Diagnostiquer pourquoi une préautorisation par e-mail ne rattache pas le compte Manus OAuth connecté et corriger l’activation réelle du rôle et des permissions.
