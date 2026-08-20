@@ -318,3 +318,5 @@ Les listes exhaustives qui limitaient les parcours **Activités** et **Fiscalit�
 | Obligations | Génération par lots à partir d’une règle de groupe active, avec préservation de l’idempotence. | Les obligations existantes pour une activité et une période ne sont pas recréées. |
 
 La migration additive `0007` étend les portées fiscales sans modifier les données existantes. La validation finale compte **62 tests réussis sur 24 fichiers**, TypeScript sans erreur et compilation de production valide. L’aide contextuelle explique désormais la recherche de redevables, les critères de groupe, la désactivation d’une règle et la génération par lots.
+
+Les contrôles visuels authentifiés en résolution bureau **1 280 × 900** confirment les trois parcours : la page Activités annonce la recherche préalable par référence, nom et identifiants ; la page Fiscalité présente les champs de groupe, la recherche ciblée, les actions d’affectation et de génération de premier lot ; la page Aide expose le tutoriel « Configurer une taxe et générer des obligations » dans le cycle opérationnel filtré par permissions.
