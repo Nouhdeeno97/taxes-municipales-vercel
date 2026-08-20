@@ -276,3 +276,18 @@ Le retour de recette a confirmé que la lecture hors connexion était fonctionne
 | Traçabilité | La création synchronisée est journalisée avec l’action `CREATE_OFFLINE` et inscrite dans le registre de synchronisation. | L’origine différée de l’enregistrement reste vérifiable. |
 
 Le contrôle visuel confirme que le registre Redevables et l’écran Synchronisation sont accessibles avec les repères nécessaires. La suite automatisée compte **56 tests réussis sur 22 fichiers**, TypeScript sans erreur et build de production valide. Une recette terrain reste nécessaire : créer un redevable de formation sans réseau, vérifier son badge local, rétablir la connexion et confirmer qu’il apparaît une seule fois avec une référence `RED-…`.
+
+## Extension de la saisie différée aux formulaires métier — 20 août 2026
+
+La file durable ne se limite plus aux redevables. Elle accepte désormais les commandes de création et les brouillons de terrain nécessaires au cycle municipal, chacun avec un identifiant d’opération stable, un hachage de contenu, un journal de synchronisation et une protection contre les replays divergents.
+
+| Famille de formulaires | Traitement sans connexion | Résultat après reconnexion |
+|---|---|---|
+| Redevables | Création locale visible dans le registre avec état en attente. | Création unique, référence serveur finale et audit `CREATE_OFFLINE`. |
+| Activités et territoires | Catégories, types, activités, secteurs, zones, marchés et emplacements mis en file locale. | Création hiérarchique rejouée une seule fois selon l’ordre des dépendances. |
+| Fiscalité et obligations | Catégories, taxes, périodicités, règles, affectations et génération d’obligations conservées comme commandes différées. | Réexécution côté serveur avec les validations fiscales habituelles. |
+| Encaissements | File locale déjà existante conservée pour la collecte, avec identifiant de paiement stable. | Finalisation du paiement et du reçu immuable après validation serveur. |
+| Versements et clôtures | Brouillons locaux de remise et de clôture, sans validation locale de caisse. | Le serveur contrôle le rapprochement, l’écart et l’autorisation avant de créer l’état officiel. |
+| Administration sensible | Consultation des données déjà visitées possible grâce au cache. Création de comptes, modifications de rôles/permissions, archivage, impression et validation comptable restent soumises à une connexion et aux contrôles d’accès. | Aucune écriture de sécurité ou décision comptable ne peut être finalisée localement. |
+
+Les contrôles techniques confirment **59 tests réussis sur 23 fichiers**, TypeScript sans erreur et build de production valide. Les captures de Fiscalité, Activités, Encaissement, Versements, Clôtures et Synchronisation ont été revues après le branchement des files différées. Une vérification terrain distincte reste requise pour chaque famille de formulaires, afin de confirmer le comportement du navigateur et de l’appareil réellement utilisé.

@@ -16,6 +16,7 @@ import {
 import { startLogin } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import { useOfflineQueue } from "@/hooks/useOfflineQueue";
+import { useOfflineCreate } from "@/hooks/useOfflineCreate";
 import { trpc } from "@/lib/trpc";
 import {
   Activity,
@@ -62,6 +63,7 @@ const menuItems = [
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { loading, user } = useAuth();
+  useOfflineCreate();
   if (loading) return <DashboardLayoutSkeleton />;
   if (!user) {
     return (

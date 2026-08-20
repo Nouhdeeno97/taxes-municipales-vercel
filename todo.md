@@ -139,3 +139,7 @@
 - [x] Permettre la création d’un redevable sans connexion, avec enregistrement local durable, indication explicite « en attente de synchronisation » et visibilité dans le registre local.
 - [x] Synchroniser à la reconnexion les redevables créés hors ligne au moyen d’un identifiant d’opération stable, sans double création, avec remontée des conflits métier éventuels.
 - [ ] Ajouter les tests automatisés et la recette de terrain couvrant création hors ligne, conservation après rechargement, synchronisation à la reconnexion et absence de doublon. Les 56 tests automatisés sont réussis ; la recette matérielle est à rejouer sur l’appareil cible.
+- [x] Recenser tous les formulaires de la plateforme et définir, pour chacun, le comportement hors connexion : création différée, consultation seulement, ou contrôle obligatoirement en ligne.
+- [x] Étendre la file locale durable aux créations et actions métier compatibles après redevables, notamment activités, territoires, référentiels fiscaux, obligations, encaissements, versements, clôtures et administration, avec identifiants stables et reprise idempotente. Les décisions d’accès et de sécurité restent explicitement protégées en ligne.
+- [ ] Afficher dans chaque formulaire non compatible hors connexion une explication claire du contrôle requis en ligne, sans laisser croire que l’écriture a été enregistrée.
+- [ ] Ajouter les tests automatisés, les contrôles de conflits et une recette terrain par famille de formulaires avant de déclarer la couverture hors connexion généralisée.

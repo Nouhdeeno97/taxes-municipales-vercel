@@ -93,6 +93,15 @@ const taxpayerCreateInput = taxpayerInput.extend({
   deviceId: z.string().trim().min(1).max(128).optional(),
 });
 
+export const deferredCreateInput = z.object({
+  deviceId: z.string().trim().min(4).max(128),
+  operationId: z.string().uuid(),
+  entityId: z.string().uuid(),
+  payloadHash: z.string().trim().min(16).max(128),
+  command: z.enum(["ACTIVITY", "ACTIVITY_CATEGORY", "ACTIVITY_TYPE", "SECTOR", "ZONE", "MARKET", "MARKET_LOCATION", "TAX_CATEGORY", "TAX_TYPE", "PERIODICITY", "TAX_RULE", "ASSIGN_RULE", "GENERATE_OBLIGATIONS", "DEPOSIT_DRAFT", "CLOSING_DRAFT"]),
+  payload: z.unknown(),
+});
+
 type TaxpayerIdentity = { type: "PERSON" | "COMPANY"; firstName?: string | null; lastName?: string | null; legalName?: string | null; nationalId?: string | null; taxId?: string | null };
 
 export function offlineTaxpayerReplayDisposition(existing: (TaxpayerIdentity & { id: string; municipalityId: string }) | undefined, input: TaxpayerIdentity, municipalityId: string, clientTaxpayerId?: string) {
@@ -633,6 +642,132 @@ export const municipalRouter = router({
       const municipalityId = await requireAccess(ctx.user, "synchronization", "create"); const db = await requireDb(); const existing = await db.select().from(syncOperations).where(and(eq(syncOperations.deviceId, input.deviceId), eq(syncOperations.operationId, input.operationId))).limit(1);
       if (existing[0]) { if (syncReplayDisposition(existing[0].payloadHash, input.payloadHash) === "IDEMPOTENT") return { status: existing[0].status, idempotent: true }; const conflictId = randomUUID(); await db.insert(syncConflicts).values({ id: conflictId, syncOperationId: existing[0].id, localPayload: input.payload, serverPayload: existing[0].result }); await db.update(syncOperations).set({ status: "CONFLICT" }).where(eq(syncOperations.id, existing[0].id)); throw new TRPCError({ code: "CONFLICT", message: "Conflit de synchronisation détecté et journalisé." }); }
       const id = randomUUID(); await db.insert(syncOperations).values({ id, municipalityId, deviceId: input.deviceId, operationId: input.operationId, entityType: input.entityType, entityId: input.entityId, operation: input.operation, payloadHash: input.payloadHash, status: "SYNCED", result: { acceptedAt: new Date().toISOString() }, processedAt: new Date() }); await audit(db, { municipalityId, actorId: ctx.user.id, action: "SYNC", module: "synchronization", entityType: input.entityType, entityId: input.entityId, afterValue: { operationId: input.operationId }, deviceId: input.deviceId }); return { id, status: "SYNCED", idempotent: false };
+    }),
+    replayCreate: protectedProcedure.input(deferredCreateInput).mutation(async ({ ctx, input }) => {
+      const municipalityId = await requireAccess(ctx.user, "synchronization", "create");
+      const db = await requireDb();
+      const existing = await db.select().from(syncOperations).where(and(eq(syncOperations.deviceId, input.deviceId), eq(syncOperations.operationId, input.operationId))).limit(1);
+      if (existing[0]) {
+        if (syncReplayDisposition(existing[0].payloadHash, input.payloadHash) === "IDEMPOTENT") return { status: existing[0].status, entityId: existing[0].entityId, idempotent: true };
+        const conflictId = randomUUID();
+        await db.insert(syncConflicts).values({ id: conflictId, syncOperationId: existing[0].id, localPayload: input.payload, serverPayload: existing[0].result });
+        await db.update(syncOperations).set({ status: "CONFLICT" }).where(eq(syncOperations.id, existing[0].id));
+        throw new TRPCError({ code: "CONFLICT", message: "Le même brouillon local contient des données différentes ; le conflit est journalisé." });
+      }
+
+      const inputByCommand = {
+        SECTOR: z.object({ code: z.string().trim().min(2).max(32), name: z.string().trim().min(2).max(120) }),
+        ZONE: z.object({ sectorId: z.string().uuid(), code: z.string().trim().min(2).max(32), name: z.string().trim().min(2).max(120) }),
+        MARKET: z.object({ zoneId: z.string().uuid(), code: z.string().trim().min(2).max(32), name: z.string().trim().min(2).max(160), address: z.string().trim().max(500).optional() }),
+        MARKET_LOCATION: z.object({ marketId: z.string().uuid(), code: z.string().trim().min(2).max(48), label: z.string().trim().min(2).max(120) }),
+        ACTIVITY_CATEGORY: z.object({ code: z.string().trim().min(2).max(48), label: z.string().trim().min(2).max(160) }),
+        ACTIVITY_TYPE: z.object({ categoryId: z.string().uuid(), code: z.string().trim().min(2).max(48), label: z.string().trim().min(2).max(160) }),
+        TAX_CATEGORY: z.object({ code: z.string().trim().min(2).max(48), label: z.string().trim().min(2).max(160) }),
+        TAX_TYPE: z.object({ categoryId: z.string().uuid().optional(), code: z.string().trim().min(2).max(48), label: z.string().trim().min(2).max(180) }),
+        PERIODICITY: z.object({ code: z.string().trim().min(2).max(48), label: z.string().trim().min(2).max(120), calendarUnit: z.enum(["DAY", "WEEK", "MONTH", "QUARTER", "SEMESTER", "YEAR", "CUSTOM"]), intervalCount: z.number().int().min(1).max(365) }),
+        TAX_RULE: z.object({ taxTypeId: z.string().uuid(), periodicityId: z.string().uuid(), code: z.string().trim().min(2).max(64), label: z.string().trim().min(2).max(180), baseAmount: z.number().nonnegative(), graceDays: z.number().int().min(0).max(365), penaltyRate: z.number().min(0).max(1), validFrom: z.coerce.date() }),
+        ASSIGN_RULE: z.object({ activityId: z.string().uuid(), taxRuleId: z.string().uuid(), startDate: z.coerce.date() }),
+        GENERATE_OBLIGATIONS: z.object({ activityId: z.string().uuid(), periodStart: z.coerce.date(), periodEnd: z.coerce.date(), dueDate: z.coerce.date() }),
+        DEPOSIT_DRAFT: z.object({ paymentIds: z.array(z.string().uuid()).min(1), depositedAmount: money, observation: z.string().trim().max(1000).optional() }),
+        CLOSING_DRAFT: z.object({ businessDate: z.coerce.date(), expectedAmount: money.nonnegative(), depositedAmount: money.nonnegative() }),
+        ACTIVITY: z.object({ taxpayerId: z.string().uuid(), activityTypeId: z.string().uuid(), label: z.string().trim().min(2).max(220), locationType: z.enum(["ZONE", "MARKET", "MARKET_LOCATION", "MOBILE", "CUSTOM"]), zoneId: z.string().uuid().optional(), marketId: z.string().uuid().optional(), marketLocationId: z.string().uuid().optional(), address: z.string().trim().max(500).optional(), startedAt: z.coerce.date() }),
+      } as const;
+      const payload = inputByCommand[input.command].parse(input.payload) as Record<string, any>;
+
+      await db.transaction(async tx => {
+        await tx.insert(syncOperations).values({ id: randomUUID(), municipalityId, deviceId: input.deviceId, operationId: input.operationId, entityType: input.command.toLowerCase(), entityId: input.entityId, operation: "CREATE", payloadHash: input.payloadHash, status: "PROCESSING" });
+        if (input.command === "SECTOR") {
+          requireAdmin(ctx.user); await requireAccess(ctx.user, "territory", "manage");
+          await tx.insert(sectors).values({ id: input.entityId, municipalityId, code: String(payload.code).toUpperCase(), name: String(payload.name) });
+        } else if (input.command === "ZONE") {
+          requireAdmin(ctx.user); await requireAccess(ctx.user, "territory", "manage");
+          mustGet((await tx.select({ id: sectors.id }).from(sectors).where(and(eq(sectors.id, payload.sectorId), eq(sectors.municipalityId, municipalityId))).limit(1))[0], "Secteur parent introuvable après synchronisation.");
+          await tx.insert(zones).values({ id: input.entityId, sectorId: String(payload.sectorId), code: String(payload.code).toUpperCase(), name: String(payload.name) });
+        } else if (input.command === "MARKET") {
+          requireAdmin(ctx.user); await requireAccess(ctx.user, "territory", "manage");
+          const zone = mustGet((await tx.select({ municipalityId: sectors.municipalityId }).from(zones).innerJoin(sectors, eq(zones.sectorId, sectors.id)).where(eq(zones.id, payload.zoneId)).limit(1))[0], "Zone parente introuvable après synchronisation.");
+          if (zone.municipalityId !== municipalityId) throw new TRPCError({ code: "FORBIDDEN", message: "La zone parente ne relève pas de votre mairie." });
+          await tx.insert(markets).values({ id: input.entityId, zoneId: String(payload.zoneId), code: String(payload.code).toUpperCase(), name: String(payload.name), address: payload.address ? String(payload.address) : undefined });
+        } else if (input.command === "MARKET_LOCATION") {
+          requireAdmin(ctx.user); await requireAccess(ctx.user, "territory", "manage");
+          const market = mustGet((await tx.select({ municipalityId: sectors.municipalityId }).from(markets).innerJoin(zones, eq(markets.zoneId, zones.id)).innerJoin(sectors, eq(zones.sectorId, sectors.id)).where(eq(markets.id, payload.marketId)).limit(1))[0], "Marché parent introuvable après synchronisation.");
+          if (market.municipalityId !== municipalityId) throw new TRPCError({ code: "FORBIDDEN", message: "Le marché parent ne relève pas de votre mairie." });
+          await tx.insert(marketLocations).values({ id: input.entityId, marketId: String(payload.marketId), code: String(payload.code).toUpperCase(), label: String(payload.label) });
+        } else if (input.command === "ACTIVITY_CATEGORY") {
+          requireAdmin(ctx.user); await requireAccess(ctx.user, "administration", "manage");
+          await tx.insert(activityCategories).values({ id: input.entityId, municipalityId, code: payload.code.toUpperCase(), label: payload.label });
+        } else if (input.command === "ACTIVITY_TYPE") {
+          requireAdmin(ctx.user); await requireAccess(ctx.user, "administration", "manage");
+          mustGet((await tx.select({ id: activityCategories.id }).from(activityCategories).where(and(eq(activityCategories.id, payload.categoryId), eq(activityCategories.municipalityId, municipalityId))).limit(1))[0], "Catégorie d’activité introuvable après synchronisation.");
+          await tx.insert(activityTypes).values({ id: input.entityId, categoryId: String(payload.categoryId), code: String(payload.code).toUpperCase(), label: String(payload.label) });
+        } else if (input.command === "TAX_CATEGORY") {
+          requireAdmin(ctx.user); await requireAccess(ctx.user, "administration", "manage");
+          await tx.insert(taxCategories).values({ id: input.entityId, municipalityId, code: String(payload.code).toUpperCase(), label: String(payload.label) });
+        } else if (input.command === "TAX_TYPE") {
+          requireAdmin(ctx.user); await requireAccess(ctx.user, "administration", "manage");
+          if (payload.categoryId) mustGet((await tx.select({ id: taxCategories.id }).from(taxCategories).where(and(eq(taxCategories.id, payload.categoryId), eq(taxCategories.municipalityId, municipalityId))).limit(1))[0], "Catégorie de taxe introuvable après synchronisation.");
+          await tx.insert(taxTypes).values({ id: input.entityId, municipalityId, categoryId: payload.categoryId ? String(payload.categoryId) : undefined, code: String(payload.code).toUpperCase(), label: String(payload.label) });
+        } else if (input.command === "PERIODICITY") {
+          requireAdmin(ctx.user); await requireAccess(ctx.user, "administration", "manage");
+          await tx.insert(taxPeriodicities).values({ id: input.entityId, municipalityId, code: String(payload.code).toUpperCase(), label: String(payload.label), calendarUnit: payload.calendarUnit, intervalCount: payload.intervalCount });
+        } else if (input.command === "TAX_RULE") {
+          requireAdmin(ctx.user); await requireAccess(ctx.user, "fiscality", "manage");
+          mustGet((await tx.select({ id: taxTypes.id }).from(taxTypes).where(and(eq(taxTypes.id, payload.taxTypeId), eq(taxTypes.municipalityId, municipalityId))).limit(1))[0], "Type de taxe introuvable après synchronisation.");
+          mustGet((await tx.select({ id: taxPeriodicities.id }).from(taxPeriodicities).where(and(eq(taxPeriodicities.id, payload.periodicityId), or(eq(taxPeriodicities.municipalityId, municipalityId), isNull(taxPeriodicities.municipalityId)))).limit(1))[0], "Périodicité introuvable après synchronisation.");
+          await tx.insert(taxRules).values({ id: input.entityId, municipalityId, taxTypeId: payload.taxTypeId, periodicityId: payload.periodicityId, code: String(payload.code).toUpperCase(), label: String(payload.label), baseAmount: moneyValue(payload.baseAmount), graceDays: payload.graceDays, penaltyRate: moneyValue(payload.penaltyRate), validFrom: payload.validFrom, createdBy: ctx.user.id });
+        } else if (input.command === "ASSIGN_RULE") {
+          await requireAccess(ctx.user, "fiscality", "manage");
+          mustGet((await tx.select({ id: activities.id }).from(activities).where(and(eq(activities.id, payload.activityId), eq(activities.municipalityId, municipalityId))).limit(1))[0], "Activité introuvable après synchronisation.");
+          mustGet((await tx.select({ id: taxRules.id }).from(taxRules).where(and(eq(taxRules.id, payload.taxRuleId), eq(taxRules.municipalityId, municipalityId))).limit(1))[0], "Règle fiscale introuvable après synchronisation.");
+          const assignment = await tx.select({ id: activityTaxAssignments.id }).from(activityTaxAssignments).where(and(eq(activityTaxAssignments.activityId, payload.activityId), eq(activityTaxAssignments.taxRuleId, payload.taxRuleId), eq(activityTaxAssignments.startDate, payload.startDate))).limit(1);
+          if (!assignment[0]) await tx.insert(activityTaxAssignments).values({ id: input.entityId, activityId: payload.activityId, taxRuleId: payload.taxRuleId, startDate: payload.startDate });
+        } else if (input.command === "GENERATE_OBLIGATIONS") {
+          await requireAccess(ctx.user, "obligations", "generate");
+          const activity = mustGet((await tx.select().from(activities).where(and(eq(activities.id, payload.activityId), eq(activities.municipalityId, municipalityId))).limit(1))[0], "Activité introuvable après synchronisation.");
+          if (!activity.currentTaxpayerId) throw new TRPCError({ code: "CONFLICT", message: "L’activité n’a pas de redevable actif." });
+          const assignments = await tx.select({ assignment: activityTaxAssignments, rule: taxRules }).from(activityTaxAssignments).innerJoin(taxRules, eq(activityTaxAssignments.taxRuleId, taxRules.id)).where(and(eq(activityTaxAssignments.activityId, activity.id), eq(activityTaxAssignments.isActive, true), eq(taxRules.isActive, true)));
+          for (const { assignment, rule } of assignments) {
+            const existingObligation = await tx.select({ id: taxObligations.id }).from(taxObligations).where(and(eq(taxObligations.activityId, activity.id), eq(taxObligations.taxRuleId, assignment.taxRuleId), eq(taxObligations.periodStart, payload.periodStart), eq(taxObligations.periodEnd, payload.periodEnd))).limit(1);
+            if (existingObligation[0]) continue;
+            const exemption = (await tx.select().from(taxExemptions).where(and(eq(taxExemptions.taxpayerId, activity.currentTaxpayerId), or(isNull(taxExemptions.taxTypeId), eq(taxExemptions.taxTypeId, rule.taxTypeId)), eq(taxExemptions.status, "APPROVED"), lte(taxExemptions.startDate, payload.periodEnd), or(isNull(taxExemptions.endDate), gte(taxExemptions.endDate, payload.periodStart)))).limit(1))[0];
+            const expected = previewTaxAmount({ baseAmount: Number(rule.baseAmount), exemptionRate: Number(exemption?.rate ?? 0) }).totalAmount;
+            await tx.insert(taxObligations).values({ id: randomUUID(), municipalityId, reference: reference("OBL"), taxpayerId: activity.currentTaxpayerId, activityId: activity.id, taxTypeId: rule.taxTypeId, taxRuleId: rule.id, periodStart: payload.periodStart, periodEnd: payload.periodEnd, dueDate: payload.dueDate, expectedAmount: moneyValue(expected), remainingAmount: moneyValue(expected), status: "PENDING" });
+          }
+        } else if (input.command === "DEPOSIT_DRAFT") {
+          await requireAccess(ctx.user, "deposits", "create");
+          const selected = await tx.select({ payment: paymentTransactions, depositItemId: depositItems.id }).from(paymentTransactions).leftJoin(depositItems, eq(depositItems.paymentTransactionId, paymentTransactions.id)).where(and(eq(paymentTransactions.municipalityId, municipalityId), inArray(paymentTransactions.id, payload.paymentIds)));
+          const uniqueSelection = new Set(payload.paymentIds).size === payload.paymentIds.length;
+          const ineligible = selected.find(row => !isPaymentEligibleForDeposit({ status: row.payment.status, collectedBy: row.payment.collectedBy, actorId: ctx.user.id, alreadyAssigned: Boolean(row.depositItemId) }));
+          if (!uniqueSelection || selected.length !== payload.paymentIds.length || ineligible) throw new TRPCError({ code: "CONFLICT", message: "Le brouillon de versement ne peut plus être soumis : un encaissement est absent, déjà versé ou hors périmètre." });
+          const paymentRows = selected.map(row => row.payment); const expectedAmount = paymentRows.reduce((sum, row) => sum + Number(row.netAmount), 0); const differenceAmount = Number(payload.depositedAmount) - expectedAmount;
+          await tx.insert(deposits).values({ id: input.entityId, municipalityId, reference: reference("VER"), agentId: ctx.user.id, expectedAmount: moneyValue(expectedAmount), depositedAmount: moneyValue(payload.depositedAmount), differenceAmount: moneyValue(differenceAmount), status: "SUBMITTED", submittedAt: new Date(), observation: payload.observation });
+          await tx.insert(depositItems).values(paymentRows.map(payment => ({ depositId: input.entityId, paymentTransactionId: payment.id })));
+          await tx.insert(auditLogs).values({ municipalityId, actorId: ctx.user.id, action: "DECLARE_OFFLINE", module: "deposits", entityType: "deposit", entityId: input.entityId, afterValue: { paymentIds: payload.paymentIds, expectedAmount, depositedAmount: payload.depositedAmount }, deviceId: input.deviceId });
+        } else if (input.command === "CLOSING_DRAFT") {
+          await requireAccess(ctx.user, "closings", "create");
+          const differenceAmount = Number(payload.depositedAmount) - Number(payload.expectedAmount);
+          await tx.insert(dailyClosings).values({ id: input.entityId, municipalityId, agentId: ctx.user.id, businessDate: payload.businessDate, expectedAmount: moneyValue(payload.expectedAmount), depositedAmount: moneyValue(payload.depositedAmount), differenceAmount: moneyValue(differenceAmount), status: "SUBMITTED" });
+          await tx.insert(auditLogs).values({ municipalityId, actorId: ctx.user.id, action: "SUBMIT_OFFLINE", module: "closings", entityType: "daily_closing", entityId: input.entityId, afterValue: payload, deviceId: input.deviceId });
+        } else {
+          await requireAccess(ctx.user, "activities", "create");
+          if (payload.marketLocationId) await requireTerritoryAccess(ctx.user, "MARKET_LOCATION", payload.marketLocationId);
+          else if (payload.marketId) await requireTerritoryAccess(ctx.user, "MARKET", payload.marketId);
+          else if (payload.zoneId) await requireTerritoryAccess(ctx.user, "ZONE", payload.zoneId);
+          mustGet((await tx.select({ id: taxpayers.id }).from(taxpayers).where(and(eq(taxpayers.id, payload.taxpayerId), eq(taxpayers.municipalityId, municipalityId), eq(taxpayers.status, "ACTIVE"))).limit(1))[0], "Redevable actif introuvable après synchronisation.");
+          const resolvedLocation = payload.marketLocationId ? (await tx.select({ marketId: marketLocations.marketId }).from(marketLocations).where(eq(marketLocations.id, payload.marketLocationId)).limit(1))[0] : undefined;
+          const resolvedMarketId = payload.marketId ?? resolvedLocation?.marketId;
+          await tx.insert(activities).values({ id: input.entityId, municipalityId, reference: reference("ACT"), currentTaxpayerId: payload.taxpayerId, activityTypeId: payload.activityTypeId, label: payload.label, locationType: payload.locationType, zoneId: payload.zoneId, marketId: payload.marketId, marketLocationId: payload.marketLocationId, address: payload.address, startedAt: payload.startedAt, createdBy: ctx.user.id });
+          await tx.insert(activityOwnerships).values({ activityId: input.entityId, taxpayerId: payload.taxpayerId, startDate: payload.startedAt, transferredBy: ctx.user.id });
+          const matches = await tx.select({ rule: taxRules, scope: taxRuleScopes, periodicity: taxPeriodicities }).from(taxRules)
+            .innerJoin(taxRuleScopes, eq(taxRuleScopes.taxRuleId, taxRules.id))
+            .innerJoin(taxPeriodicities, eq(taxRules.periodicityId, taxPeriodicities.id))
+            .where(and(eq(taxRules.municipalityId, municipalityId), eq(taxRules.isActive, true), eq(taxRuleScopes.activityTypeId, String(payload.activityTypeId)), resolvedMarketId ? or(isNull(taxRuleScopes.marketId), eq(taxRuleScopes.marketId, resolvedMarketId)) : isNull(taxRuleScopes.marketId), payload.zoneId ? or(isNull(taxRuleScopes.zoneId), eq(taxRuleScopes.zoneId, String(payload.zoneId))) : isNull(taxRuleScopes.zoneId)));
+          for (const { rule, periodicity } of matches) { const assignmentId = randomUUID(); await tx.insert(activityTaxAssignments).values({ id: assignmentId, activityId: input.entityId, taxRuleId: rule.id, startDate: payload.startedAt as Date }); if (periodicity.calendarUnit === "DAY") { const expectedAmount = moneyValue(Number(rule.baseAmount)); await tx.insert(taxObligations).values({ id: randomUUID(), municipalityId, reference: reference("OBL"), taxpayerId: String(payload.taxpayerId), activityId: input.entityId, taxTypeId: rule.taxTypeId, taxRuleId: rule.id, periodStart: payload.startedAt as Date, periodEnd: payload.startedAt as Date, dueDate: payload.startedAt as Date, expectedAmount, remainingAmount: expectedAmount, status: "PENDING" }); } }
+        }
+        await tx.update(syncOperations).set({ status: "SYNCED", result: { entityId: input.entityId, command: input.command }, processedAt: new Date() }).where(and(eq(syncOperations.deviceId, input.deviceId), eq(syncOperations.operationId, input.operationId)));
+        await tx.insert(auditLogs).values({ municipalityId, actorId: ctx.user.id, action: "SYNC", module: "synchronization", entityType: input.command.toLowerCase(), entityId: input.entityId, afterValue: { offlineOperationId: input.operationId, command: input.command }, deviceId: input.deviceId });
+      });
+      return { status: "SYNCED", entityId: input.entityId, idempotent: false };
     }),
     resolveConflict: protectedProcedure.input(z.object({ conflictId: z.string().uuid(), resolution: z.enum(["SERVER", "LOCAL", "MANUAL"]) })).mutation(async ({ ctx, input }) => {
       const municipalityId = await requireAccess(ctx.user, "synchronization", "resolve"); const db = await requireDb();
