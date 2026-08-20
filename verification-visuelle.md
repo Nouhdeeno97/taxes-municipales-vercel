@@ -305,3 +305,16 @@ Une bannière contextuelle apparaît désormais en mode hors connexion pour chaq
 | Reçus | Les pièces déjà consultées restent accessibles ; impression et réimpression attendent le contrôle serveur. |
 
 Le test de cette politique de routage contextuel s’ajoute à la suite, qui compte désormais **61 tests réussis sur 24 fichiers**, avec TypeScript sans erreur et une compilation de production valide.
+
+## Recherche à grande échelle et fiscalité par groupes — 20 août 2026
+
+Les listes exhaustives qui limitaient les parcours **Activités** et **Fiscalité** ont été remplacées par des recherches serveur et des critères persistants. Cette conception évite de charger tous les redevables ou toutes les activités dans le navigateur lorsque le volume augmente.
+
+| Parcours | Fonctionnement livré | Effet métier |
+|---|---|---|
+| Déclaration d’activité | Recherche paginée du redevable par référence, nom, identifiant national ou identifiant fiscal. | L’agent sélectionne le bon redevable avant de créer l’activité, sans faire défiler une liste complète. |
+| Ciblage fiscal | Recherche paginée des activités et critères de groupe : libellé, type d’activité, catégories, territoire, statut et identifiants national/fiscal du redevable associé. | Une règle peut viser une activité unique ou un groupe durable d’activités. |
+| Règle pérenne | Les critères sont enregistrés dans la portée fiscale ; l’activation/désactivation est conservée dans l’état de la règle. | Les nouvelles activités qui correspondent à une règle active la reçoivent automatiquement ; une règle désactivée ne produit plus de nouvelle obligation. |
+| Obligations | Génération par lots à partir d’une règle de groupe active, avec préservation de l’idempotence. | Les obligations existantes pour une activité et une période ne sont pas recréées. |
+
+La migration additive `0007` étend les portées fiscales sans modifier les données existantes. La validation finale compte **62 tests réussis sur 24 fichiers**, TypeScript sans erreur et compilation de production valide. L’aide contextuelle explique désormais la recherche de redevables, les critères de groupe, la désactivation d’une règle et la génération par lots.

@@ -62,4 +62,30 @@ describe("municipal.taxation.createRule — portée générique", () => {
     }));
     expect(audits).toContainEqual(expect.objectContaining({ municipalityId, action: "CREATE", module: "fiscality", entityType: "tax_rule" }));
   });
+
+  it("conserve les critères de groupe applicables aux activités et redevables futurs", async () => {
+    const scopeValues: Record<string, unknown>[] = [];
+    const db = {
+      select: vi.fn(() => selection([{ id: "reference-id" }])),
+      insert: vi.fn((table: unknown) => ({ values: vi.fn((value: Record<string, unknown>) => {
+        if (table === taxRuleScopes) scopeValues.push(value);
+        return Promise.resolve();
+      }) })),
+    };
+    requireDb.mockResolvedValue(db);
+
+    await appRouter.createCaller(context()).municipal.taxation.createRule({
+      taxTypeId: "11111111-1111-4111-8111-111111111111",
+      periodicityId: "22222222-2222-4222-8222-222222222222",
+      code: "GRP-2026",
+      label: "Taxe de groupe kiosques",
+      baseAmount: 1500,
+      graceDays: 5,
+      penaltyRate: 0,
+      validFrom: new Date("2026-08-20T00:00:00.000Z"),
+      scope: { activityTypeId, activityLabelQuery: "kiosque", taxpayerNationalId: "NAT-4455", taxpayerFiscalId: "FISC-7788" },
+    });
+
+    expect(scopeValues[0]).toEqual(expect.objectContaining({ activityTypeId, activityLabelQuery: "kiosque", taxpayerNationalId: "NAT-4455", taxpayerFiscalId: "FISC-7788" }));
+  });
 });

@@ -334,13 +334,16 @@ export const taxRuleScopes = mysqlTable("tax_rule_scopes", {
   id: uuid().primaryKey(),
   taxRuleId: uuid("taxRuleId").notNull().references(() => taxRules.id),
   activityTypeId: uuid("activityTypeId").references(() => activityTypes.id),
+  activityLabelQuery: varchar("activityLabelQuery", { length: 220 }),
   sectorId: uuid("sectorId").references(() => sectors.id),
   zoneId: uuid("zoneId").references(() => zones.id),
   marketId: uuid("marketId").references(() => markets.id),
   marketLocationId: uuid("marketLocationId").references(() => marketLocations.id),
   taxpayerType: mysqlEnum("taxpayerType", ["PERSON", "COMPANY"]),
+  taxpayerNationalId: varchar("taxpayerNationalId", { length: 128 }),
+  taxpayerFiscalId: varchar("taxpayerFiscalId", { length: 128 }),
   createdAt: createdAt(),
-});
+}, table => [index("tax_rule_scope_group_idx").on(table.taxRuleId, table.activityTypeId, table.zoneId, table.marketId)]);
 
 export const taxExemptions = mysqlTable("tax_exemptions", {
   id: uuid().primaryKey(),

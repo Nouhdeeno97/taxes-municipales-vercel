@@ -50,6 +50,13 @@
       "when": 1787228458612,
       "tag": "0006_certain_alice",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1787251599835,
+      "tag": "0007_many_wendell_rand",
+      "breakpoints": true
     }
   ]
 }

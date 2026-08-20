@@ -242,6 +242,21 @@ export const municipalRouter = router({
           like(taxpayers.legalName, `%${query}%`),
         ))).orderBy(desc(taxpayers.createdAt)).limit(20);
     }),
+    searchForActivity: protectedProcedure.input(z.object({ query: z.string().trim().min(2).max(120) })).query(async ({ ctx, input }) => {
+      const municipalityId = await requireAccess(ctx.user, "activities", "create");
+      const db = await requireDb();
+      const query = input.query;
+      return db.select({ id: taxpayers.id, reference: taxpayers.reference, firstName: taxpayers.firstName, lastName: taxpayers.lastName, legalName: taxpayers.legalName, nationalId: taxpayers.nationalId, taxId: taxpayers.taxId, status: taxpayers.status })
+        .from(taxpayers)
+        .where(and(eq(taxpayers.municipalityId, municipalityId), eq(taxpayers.status, "ACTIVE"), or(
+          like(taxpayers.reference, `%${query}%`),
+          like(taxpayers.nationalId, `%${query}%`),
+          like(taxpayers.taxId, `%${query}%`),
+          like(taxpayers.firstName, `%${query}%`),
+          like(taxpayers.lastName, `%${query}%`),
+          like(taxpayers.legalName, `%${query}%`),
+        ))).orderBy(desc(taxpayers.createdAt)).limit(20);
+    }),
     duplicates: protectedProcedure.input(taxpayerInput).query(async ({ ctx, input }) => {
       const municipalityId = await requireAccess(ctx.user, "taxpayers", "read");
       const db = await requireDb();
@@ -310,13 +325,19 @@ export const municipalRouter = router({
         .leftJoin(markets, eq(activities.marketId, markets.id))
         .where(eq(activities.municipalityId, municipalityId)).orderBy(desc(activities.createdAt)).limit(100);
     }),
+    search: protectedProcedure.input(z.object({ query: z.string().trim().max(160).optional(), activityTypeId: z.string().uuid().optional(), locationType: z.enum(["ZONE", "MARKET", "MARKET_LOCATION", "MOBILE", "CUSTOM"]).optional(), page: z.number().int().min(0).default(0) })).query(async ({ ctx, input }) => {
+      const municipalityId = await requireAccess(ctx.user, "activities", "read"); const db = await requireDb(); const text = input.query?.trim();
+      const filters = [eq(activities.municipalityId, municipalityId), input.activityTypeId ? eq(activities.activityTypeId, input.activityTypeId) : undefined, input.locationType ? eq(activities.locationType, input.locationType) : undefined, text ? or(like(activities.reference, `%${text}%`), like(activities.label, `%${text}%`), like(taxpayers.reference, `%${text}%`), like(taxpayers.nationalId, `%${text}%`), like(taxpayers.taxId, `%${text}%`), like(taxpayers.firstName, `%${text}%`), like(taxpayers.lastName, `%${text}%`), like(taxpayers.legalName, `%${text}%`)) : undefined].filter(Boolean) as any[];
+      const rows = await db.select({ activity: activities, taxpayer: taxpayers, type: activityTypes, market: markets }).from(activities).leftJoin(taxpayers, eq(activities.currentTaxpayerId, taxpayers.id)).leftJoin(activityTypes, eq(activities.activityTypeId, activityTypes.id)).leftJoin(markets, eq(activities.marketId, markets.id)).where(and(...filters)).orderBy(desc(activities.createdAt)).limit(50).offset(input.page * 50);
+      return { rows, page: input.page, hasMore: rows.length === 50 };
+    }),
     create: protectedProcedure.input(z.object({ taxpayerId: z.string().uuid(), activityTypeId: z.string().uuid(), label: z.string().trim().min(2).max(220), locationType: z.enum(["ZONE", "MARKET", "MARKET_LOCATION", "MOBILE", "CUSTOM"]), zoneId: z.string().uuid().optional(), marketId: z.string().uuid().optional(), marketLocationId: z.string().uuid().optional(), address: z.string().trim().max(500).optional(), startedAt: z.coerce.date() })).mutation(async ({ ctx, input }) => {
       const municipalityId = await requireAccess(ctx.user, "activities", "create");
       if (input.marketLocationId) await requireTerritoryAccess(ctx.user, "MARKET_LOCATION", input.marketLocationId);
       else if (input.marketId) await requireTerritoryAccess(ctx.user, "MARKET", input.marketId);
       else if (input.zoneId) await requireTerritoryAccess(ctx.user, "ZONE", input.zoneId);
       const db = await requireDb();
-      const taxpayer = await db.select({ id: taxpayers.id }).from(taxpayers).where(and(eq(taxpayers.id, input.taxpayerId), eq(taxpayers.municipalityId, municipalityId), eq(taxpayers.status, "ACTIVE"))).limit(1);
+      const taxpayer = await db.select({ id: taxpayers.id, type: taxpayers.type, nationalId: taxpayers.nationalId, taxId: taxpayers.taxId }).from(taxpayers).where(and(eq(taxpayers.id, input.taxpayerId), eq(taxpayers.municipalityId, municipalityId), eq(taxpayers.status, "ACTIVE"))).limit(1);
       mustGet(taxpayer[0], "Le redevable actif est introuvable.");
       const id = randomUUID();
       const payload = { id, municipalityId, reference: reference("ACT"), currentTaxpayerId: input.taxpayerId, activityTypeId: input.activityTypeId, label: input.label, locationType: input.locationType, zoneId: input.zoneId, marketId: input.marketId, marketLocationId: input.marketLocationId, address: input.address, startedAt: input.startedAt, createdBy: ctx.user.id };
@@ -326,10 +347,11 @@ export const municipalRouter = router({
       await db.transaction(async tx => {
         await tx.insert(activities).values(payload);
         await tx.insert(activityOwnerships).values({ activityId: id, taxpayerId: input.taxpayerId, startDate: input.startedAt, transferredBy: ctx.user.id });
-        const ruleMatches = await tx.select({ rule: taxRules, scope: taxRuleScopes, periodicity: taxPeriodicities }).from(taxRules)
+        const scopedRules = await tx.select({ rule: taxRules, scope: taxRuleScopes, periodicity: taxPeriodicities }).from(taxRules)
           .innerJoin(taxRuleScopes, eq(taxRuleScopes.taxRuleId, taxRules.id))
           .innerJoin(taxPeriodicities, eq(taxRules.periodicityId, taxPeriodicities.id))
-          .where(and(eq(taxRules.municipalityId, municipalityId), eq(taxRules.isActive, true), eq(taxRuleScopes.activityTypeId, input.activityTypeId), resolvedMarketId ? or(isNull(taxRuleScopes.marketId), eq(taxRuleScopes.marketId, resolvedMarketId)) : isNull(taxRuleScopes.marketId), input.zoneId ? or(isNull(taxRuleScopes.zoneId), eq(taxRuleScopes.zoneId, input.zoneId)) : isNull(taxRuleScopes.zoneId)));
+          .where(and(eq(taxRules.municipalityId, municipalityId), eq(taxRules.isActive, true)));
+        const ruleMatches = scopedRules.filter(({ scope }) => (!scope.activityTypeId || scope.activityTypeId === input.activityTypeId) && (!scope.activityLabelQuery || input.label.toLowerCase().includes(scope.activityLabelQuery.toLowerCase())) && (!scope.zoneId || scope.zoneId === input.zoneId) && (!scope.marketId || scope.marketId === resolvedMarketId) && (!scope.marketLocationId || scope.marketLocationId === input.marketLocationId) && (!scope.taxpayerType || scope.taxpayerType === taxpayer[0]!.type) && (!scope.taxpayerNationalId || scope.taxpayerNationalId === taxpayer[0]!.nationalId) && (!scope.taxpayerFiscalId || scope.taxpayerFiscalId === taxpayer[0]!.taxId));
         const initialObligationIds: string[] = [];
         for (const { rule, periodicity } of ruleMatches) {
           const assignmentId = randomUUID();
@@ -461,7 +483,7 @@ export const municipalRouter = router({
       const payload = { id, municipalityId, reference: reference("OBL"), ...input, expectedAmount: moneyValue(input.expectedAmount), remainingAmount: moneyValue(input.expectedAmount) };
       await db.insert(taxObligations).values(payload); await audit(db, { municipalityId, actorId: ctx.user.id, action: "CREATE", module: "obligations", entityType: "obligation", entityId: id, afterValue: payload }); return payload;
     }),
-    createRule: protectedProcedure.input(z.object({ taxTypeId: z.string().uuid(), periodicityId: z.string().uuid(), code: z.string().trim().min(2).max(64), label: z.string().trim().min(2).max(180), baseAmount: money, graceDays: z.number().int().min(0).max(365).default(0), penaltyRate: z.number().min(0).max(1).default(0), validFrom: z.coerce.date(), validTo: z.coerce.date().optional(), scope: z.object({ activityTypeId: z.string().uuid().optional(), sectorId: z.string().uuid().optional(), zoneId: z.string().uuid().optional(), marketId: z.string().uuid().optional(), marketLocationId: z.string().uuid().optional(), taxpayerType: z.enum(["PERSON", "COMPANY"]).optional() }).optional() })).mutation(async ({ ctx, input }) => {
+    createRule: protectedProcedure.input(z.object({ taxTypeId: z.string().uuid(), periodicityId: z.string().uuid(), code: z.string().trim().min(2).max(64), label: z.string().trim().min(2).max(180), baseAmount: money, graceDays: z.number().int().min(0).max(365).default(0), penaltyRate: z.number().min(0).max(1).default(0), validFrom: z.coerce.date(), validTo: z.coerce.date().optional(), scope: z.object({ activityTypeId: z.string().uuid().optional(), activityLabelQuery: z.string().trim().min(2).max(220).optional(), sectorId: z.string().uuid().optional(), zoneId: z.string().uuid().optional(), marketId: z.string().uuid().optional(), marketLocationId: z.string().uuid().optional(), taxpayerType: z.enum(["PERSON", "COMPANY"]).optional(), taxpayerNationalId: z.string().trim().max(128).optional(), taxpayerFiscalId: z.string().trim().max(128).optional() }).optional() })).mutation(async ({ ctx, input }) => {
       requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "fiscality", "manage"); const db = await requireDb();
       mustGet((await db.select({ id: taxTypes.id }).from(taxTypes).where(and(eq(taxTypes.id, input.taxTypeId), eq(taxTypes.municipalityId, municipalityId))).limit(1))[0], "Type de taxe introuvable.");
       mustGet((await db.select({ id: taxPeriodicities.id }).from(taxPeriodicities).where(and(eq(taxPeriodicities.id, input.periodicityId), or(eq(taxPeriodicities.municipalityId, municipalityId), isNull(taxPeriodicities.municipalityId)))).limit(1))[0], "Périodicité introuvable.");
@@ -469,11 +491,14 @@ export const municipalRouter = router({
       if (scope) await db.insert(taxRuleScopes).values({
         id: randomUUID(), taxRuleId: id,
         activityTypeId: scope.activityTypeId ?? null,
+        activityLabelQuery: scope.activityLabelQuery ?? null,
         sectorId: scope.sectorId ?? null,
         zoneId: scope.zoneId ?? null,
         marketId: scope.marketId ?? null,
         marketLocationId: scope.marketLocationId ?? null,
         taxpayerType: scope.taxpayerType ?? null,
+        taxpayerNationalId: scope.taxpayerNationalId ?? null,
+        taxpayerFiscalId: scope.taxpayerFiscalId ?? null,
       });
       await audit(db, { municipalityId, actorId: ctx.user.id, action: "CREATE", module: "fiscality", entityType: "tax_rule", entityId: id, afterValue: input }); return { id, ...input };
     }),
@@ -502,6 +527,38 @@ export const municipalRouter = router({
       const assignments = await db.select({ assignment: activityTaxAssignments, rule: taxRules }).from(activityTaxAssignments).innerJoin(taxRules, eq(activityTaxAssignments.taxRuleId, taxRules.id)).where(and(eq(activityTaxAssignments.activityId, activity.id), eq(activityTaxAssignments.isActive, true), eq(taxRules.isActive, true)));
       const created: string[] = []; for (const { assignment, rule } of assignments) { const existing = await db.select({ id: taxObligations.id }).from(taxObligations).where(and(eq(taxObligations.activityId, activity.id), eq(taxObligations.taxRuleId, assignment.taxRuleId), eq(taxObligations.periodStart, input.periodStart), eq(taxObligations.periodEnd, input.periodEnd))).limit(1); if (existing[0]) continue; const exemption = (await db.select().from(taxExemptions).where(and(eq(taxExemptions.taxpayerId, activity.currentTaxpayerId), or(isNull(taxExemptions.taxTypeId), eq(taxExemptions.taxTypeId, rule.taxTypeId)), eq(taxExemptions.status, "APPROVED"), lte(taxExemptions.startDate, input.periodEnd), or(isNull(taxExemptions.endDate), gte(taxExemptions.endDate, input.periodStart)))).limit(1))[0]; const expected = previewTaxAmount({ baseAmount: Number(rule.baseAmount), exemptionRate: Number(exemption?.rate ?? 0) }).totalAmount; const id = randomUUID(); await db.insert(taxObligations).values({ id, municipalityId, reference: reference("OBL"), taxpayerId: activity.currentTaxpayerId, activityId: activity.id, taxTypeId: rule.taxTypeId, taxRuleId: rule.id, periodStart: input.periodStart, periodEnd: input.periodEnd, dueDate: input.dueDate, expectedAmount: moneyValue(expected), remainingAmount: moneyValue(expected), status: "PENDING" }); created.push(id); }
       await audit(db, { municipalityId, actorId: ctx.user.id, action: "GENERATE", module: "obligations", entityType: "tax_obligation_batch", entityId: activity.id, afterValue: { ...input, created } }); return { createdCount: created.length, created };
+    }),
+    generateForRuleGroup: protectedProcedure.input(z.object({ taxRuleId: z.string().uuid(), periodStart: z.coerce.date(), periodEnd: z.coerce.date(), dueDate: z.coerce.date(), offset: z.number().int().min(0).default(0), limit: z.number().int().min(1).max(500).default(200) })).mutation(async ({ ctx, input }) => {
+      const municipalityId = await requireAccess(ctx.user, "obligations", "generate"); const db = await requireDb();
+      const rule = mustGet((await db.select().from(taxRules).where(and(eq(taxRules.id, input.taxRuleId), eq(taxRules.municipalityId, municipalityId), eq(taxRules.isActive, true))).limit(1))[0], "Règle fiscale active introuvable.");
+      const scopeRows = await db.select().from(taxRuleScopes).where(eq(taxRuleScopes.taxRuleId, rule.id));
+      const scopes = scopeRows.length ? scopeRows : [undefined];
+      const targetIds = new Set<string>();
+      for (const scope of scopes) {
+        const rows = await db.select({ activity: activities, taxpayer: taxpayers }).from(activities).innerJoin(taxpayers, eq(activities.currentTaxpayerId, taxpayers.id)).where(and(
+          eq(activities.municipalityId, municipalityId), eq(activities.status, "ACTIVE"),
+          scope?.activityTypeId ? eq(activities.activityTypeId, scope.activityTypeId) : undefined,
+          scope?.activityLabelQuery ? sql`lower(${activities.label}) like ${`%${scope.activityLabelQuery.toLowerCase()}%`}` : undefined,
+          scope?.zoneId ? eq(activities.zoneId, scope.zoneId) : undefined,
+          scope?.marketId ? eq(activities.marketId, scope.marketId) : undefined,
+          scope?.marketLocationId ? eq(activities.marketLocationId, scope.marketLocationId) : undefined,
+          scope?.taxpayerType ? eq(taxpayers.type, scope.taxpayerType) : undefined,
+          scope?.taxpayerNationalId ? eq(taxpayers.nationalId, scope.taxpayerNationalId) : undefined,
+          scope?.taxpayerFiscalId ? eq(taxpayers.taxId, scope.taxpayerFiscalId) : undefined,
+        )).orderBy(activities.id).limit(input.limit).offset(input.offset);
+        rows.forEach(row => targetIds.add(row.activity.id));
+      }
+      const targets = await Promise.all(Array.from(targetIds).map(async activityId => mustGet((await db.select({ activity: activities, taxpayer: taxpayers }).from(activities).innerJoin(taxpayers, eq(activities.currentTaxpayerId, taxpayers.id)).where(eq(activities.id, activityId)).limit(1))[0], "Activité de groupe introuvable.")));
+      const created: string[] = [];
+      for (const { activity, taxpayer } of targets) {
+        const existing = await db.select({ id: taxObligations.id }).from(taxObligations).where(and(eq(taxObligations.activityId, activity.id), eq(taxObligations.taxRuleId, rule.id), eq(taxObligations.periodStart, input.periodStart), eq(taxObligations.periodEnd, input.periodEnd))).limit(1); if (existing[0]) continue;
+        const exemption = (await db.select().from(taxExemptions).where(and(eq(taxExemptions.taxpayerId, taxpayer.id), or(isNull(taxExemptions.taxTypeId), eq(taxExemptions.taxTypeId, rule.taxTypeId)), eq(taxExemptions.status, "APPROVED"), lte(taxExemptions.startDate, input.periodEnd), or(isNull(taxExemptions.endDate), gte(taxExemptions.endDate, input.periodStart)))).limit(1))[0];
+        const expected = previewTaxAmount({ baseAmount: Number(rule.baseAmount), exemptionRate: Number(exemption?.rate ?? 0) }).totalAmount; const id = randomUUID();
+        await db.insert(taxObligations).values({ id, municipalityId, reference: reference("OBL"), taxpayerId: taxpayer.id, activityId: activity.id, taxTypeId: rule.taxTypeId, taxRuleId: rule.id, periodStart: input.periodStart, periodEnd: input.periodEnd, dueDate: input.dueDate, expectedAmount: moneyValue(expected), remainingAmount: moneyValue(expected), status: "PENDING" }); created.push(id);
+      }
+      const reachedLimit = targetIds.size >= input.limit;
+      await audit(db, { municipalityId, actorId: ctx.user.id, action: "GENERATE_GROUP", module: "obligations", entityType: "tax_obligation_group_batch", entityId: rule.id, afterValue: { ...input, targetCount: targetIds.size, created } });
+      return { targetCount: targetIds.size, createdCount: created.length, created, nextOffset: reachedLimit ? input.offset + input.limit : undefined };
     }),
     applyAdjustment: protectedProcedure.input(z.object({ obligationId: z.string().uuid(), adjustmentAmount: z.number().finite(), discountAmount: z.number().finite().min(0).optional(), reason: z.string().trim().min(5).max(1000) })).mutation(async ({ ctx, input }) => {
       requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "obligations", "adjust"); const db = await requireDb();
