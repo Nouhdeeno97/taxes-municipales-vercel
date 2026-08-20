@@ -19,19 +19,25 @@ export async function requireDb() {
   return db;
 }
 
-export async function upsertUser(user: InsertUser): Promise<void> {
+export function prepareOAuthUpsertValues(user: InsertUser): InsertUser {
   if (!user.openId) throw new Error("L’identifiant d’authentification est requis.");
-  const db = await getDb();
-  if (!db) return;
-
-  const values: InsertUser = {
+  return {
     openId: user.openId,
+    // Une invitation OAuth doit choisir elle-même la mairie lors de sa consommation.
+    // Écrire null explicitement évite un éventuel défaut historique de base de données.
+    municipalityId: user.municipalityId ?? null,
     name: user.name ?? null,
     email: user.email ?? null,
     loginMethod: user.loginMethod ?? null,
     lastSignedIn: user.lastSignedIn ?? new Date(),
     role: user.role ?? (user.openId === ENV.ownerOpenId ? "admin" : "user"),
   };
+}
+
+export async function upsertUser(user: InsertUser): Promise<void> {
+  const values = prepareOAuthUpsertValues(user);
+  const db = await getDb();
+  if (!db) return;
 
   await db.insert(users).values(values).onDuplicateKeyUpdate({
     set: {

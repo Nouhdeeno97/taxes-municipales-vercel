@@ -162,3 +162,40 @@ Une recette de formation explicitement identifiée `FORM-RECETTE-20260820` a dé
 | Régression évitée | Test de routeur dédié : les limites sectorielles, de zone, de marché et d’emplacement d’une règle générique sont `null`. |
 
 Le scénario porte uniquement des données de formation, sans redevable réel. Il confirme que la mairie peut introduire une taxe future, l’associer à une activité et faire produire les obligations sans changement de code.
+
+## Validation contrôlée du rattachement OAuth préautorisé — 20 août 2026
+
+La recette de première connexion OAuth a révélé un cas empêchant une invitation préautorisée de s’activer : une valeur par défaut historique pouvait associer le compte provisoire à une mairie avant la consommation de l’invitation. La protection de cohérence rejetait alors l’activation, car le compte semblait déjà rattaché à une mairie. Le premier enregistrement OAuth fixe désormais explicitement une mairie absente tant que l’invitation n’a pas été consommée.
+
+| Contrôle serveur | Résultat |
+|---|---|
+| Compte OAuth provisoire | Créé avec `municipalityId = null` lorsque l’identité ne porte pas encore de mairie validée. |
+| Consommation de l’invitation | État passé de `PENDING` à `ACTIVATED` après normalisation de l’e-mail. |
+| Rattachement | Mairie de l’invitation affectée au compte uniquement durant l’activation. |
+| Rôle | Rôle municipal actif de l’invitation affecté sans doublon. |
+| Régression | Test unitaire dédié de la préparation du compte OAuth provisoire réussi. |
+| Nettoyage | Comptes et invitations de recette retirés après contrôle. |
+
+La recette utilise le même helper appelé par le callback OAuth, mais elle ne remplace pas un essai avec un **second compte Manus réel**. Ce dernier reste explicitement requis pour vérifier la redirection OAuth, l’émission de session et l’affichage réel des droits dans le navigateur.
+
+## Validation de la recherche d’encaissement — 20 août 2026
+
+Une recette contrôlée a créé un redevable de formation temporaire, appelé la procédure effectivement utilisée par le formulaire d’encaissement, puis recherché ce même redevable selon les quatre clés prévues. Le redevable a été retiré une fois la vérification achevée ; aucune identité réelle n’a été utilisée ni conservée.
+
+| Critère saisi | Résultat |
+|---|---|
+| Référence redevable | Le résultat de recherche contient le redevable de formation. |
+| Identifiant national | Le résultat de recherche contient le même redevable. |
+| Identifiant fiscal | Le résultat de recherche contient le même redevable. |
+| Nom complet | Le résultat de recherche contient le même redevable. |
+
+Le contrôle exerce la recherche `searchForPayment` avec le contexte administrateur municipal et vérifie qu’un résultat est rendu pour chacun des quatre critères, sans chargement d’une liste massive.
+
+## Validation de l’aide contextuelle limitée — 20 août 2026
+
+Un test de routeur introduit un compte municipal local limité disposant exclusivement des droits `dashboard.read` et `payments.create`. L’appel de `municipal.help.permissions` restitue exactement ces deux droits actifs et n’ajoute pas de permission administrative. L’interface d’aide s’appuie sur cette réponse pour n’afficher que les tutoriels dont le droit est présent ; l’administrateur conserve, lui, le parcours complet grâce au joker `*.*`.
+
+| Compte testé | Permissions présentées à l’aide | Permissions exclues |
+|---|---|---|
+| Agent municipal limité | `dashboard.read`, `payments.create` | `administration.manage` et tous les tutoriels associés |
+| Administrateur | `*.*` | Aucune limitation fonctionnelle |

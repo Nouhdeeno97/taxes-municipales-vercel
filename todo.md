@@ -61,7 +61,7 @@
 - [x] Rédiger un guide de test pas à pas de la plateforme, décrivant l’ordre d’utilisation, les résultats attendus et la manière de signaler les écarts.
 - [x] Diagnostiquer pourquoi les catégories et référentiels créés depuis Administration ne sont pas visibles ou sélectionnables dans les modules dépendants.
 - [x] Remplacer la saisie manuelle des permissions par une matrice de cases à cocher, afficher les permissions réellement attribuées aux rôles et appliquer ces rôles aux utilisateurs. Interface et serveur ajoutés ; contrôle effectif confirmé avec un compte local à rôle limité, autorisation `dashboard.read` et refus `FORBIDDEN` de `obligations.read`.
-- [ ] Ajouter un parcours sécurisé de gestion des utilisateurs compatible avec Manus OAuth : préautorisation, rattachement municipal, rôle, activation et première connexion du compte concerné. Parcours implémenté ; première connexion avec un second compte Manus encore à valider.
+- [ ] Ajouter un parcours sécurisé de gestion des utilisateurs compatible avec Manus OAuth : préautorisation, rattachement municipal, rôle, activation et première connexion du compte concerné. Les helpers et la persistance sont corrigés ; la validation OAuth réelle via callback et session reste à effectuer avec un second compte Manus.
 - [x] Permettre la création hiérarchique complète Mairie → Secteur → Zone → Marché → Emplacement avec listes dépendantes et contrôles de parenté.
 - [x] Clarifier et compléter le paramétrage fiscal : catégories, types de taxes, périodicités, règles tarifaires, prévisualisation du calcul et visibilité dans la génération d’obligations. Le scénario `FORM-RECETTE-20260820` confirme la génération automatique d’une obligation à partir d’un nouveau paramétrage générique.
 - [x] Rendre le parcours de test complet opérationnel : redevable, activité, obligation générée, encaissement, aperçu de reçu avant validation, reçu final, versement et clôture. Le cycle post-correction est exécuté avec un scénario de formation autorisé et un écart de clôture nul.
@@ -70,7 +70,7 @@
 - [x] Ajouter recherche, filtres contextuels et exports CSV et PDF aux registres et rapports pertinents. Fonctions et contenu d’export vérifiés sur les redevables, obligations, reçus et rapports.
 - [ ] Ajouter les tests automatisés et validations visuelles couvrant les nouveaux parcours d’administration, fiscalité, collecte, hors connexion et export. Administration, fiscalité, collecte et export sont couverts par 43 tests et contrôles visuels ; la coupure réseau réelle demeure à valider sur l’appareil cible.
 - [ ] Tester une coupure réseau réelle après consultation des écrans en ligne sur l’appareil cible, puis confirmer la conservation locale et la synchronisation à la reconnexion.
-- [ ] Tester un compte préautorisé Manus OAuth jusqu’à sa première connexion, puis vérifier son activation, son rattachement municipal et les rôles réellement reçus.
+- [ ] Tester un compte préautorisé Manus OAuth jusqu’à sa première connexion, puis vérifier son activation, son rattachement municipal et les rôles réellement reçus. La recette de helpers est réussie ; l’essai callback/session avec un compte Manus distinct reste requis.
 - [x] Vérifier qu’une permission accordée depuis la matrice autorise l’action correspondante et qu’une permission absente la bloque côté serveur.
 - [x] Exécuter le cycle complet post-correction avec un scénario de formation autorisé : redevable, activité taxable, obligation, encaissement, aperçu, reçu, versement et clôture.
 - [x] Vérifier le contenu des exports CSV et PDF sur les registres concernés, y compris les filtres appliqués. Les utilitaires, transformations et téléchargements complets sont contrôlés registre par registre.
@@ -80,13 +80,13 @@
 - [x] Vérifier explicitement que les boutons d’export de chaque registre utilisent le sous-ensemble filtré affiché, et non la liste complète non filtrée.
 - [x] Afficher distinctement, dans le contrôle fiscal, le montant initial d’une obligation et son reste dû après encaissement.
 - [x] Couvrir par tests le format CSV et l’export exclusif des lignes issues du filtre actif.
-- [ ] Diagnostiquer pourquoi une préautorisation par e-mail ne rattache pas le compte Manus OAuth connecté et corriger l’activation réelle du rôle et des permissions.
-- [ ] Concevoir un accès de test sans compte Manus, sans contourner la sécurité ni créer d’identifiants fictifs non traçables, puis préciser le parcours de connexion.
-- [ ] Ajouter à l’encaissement une recherche serveur de redevables par identifiant national, identifiant fiscal, référence ou nom, avec sélection sans défilement de liste massive.
-- [ ] Remplacer l’impression de la page entière par un aperçu et une impression du seul reçu, pour première émission et réimpression.
-- [ ] Ajouter un menu Aide proposant des tutoriels pas à pas, filtrés dynamiquement selon les permissions réelles de l’utilisateur connecté.
-- [ ] Enrichir le design bleu et blanc avec hiérarchie visuelle, gradients et micro-interactions accessibles, sans dégrader la lisibilité des agents.
-- [ ] Ajouter des tests et contrôles visuels pour l’activation des accès, la recherche d’encaissement, l’impression de reçu et l’aide contextuelle.
+- [ ] Diagnostiquer pourquoi une préautorisation par e-mail ne rattache pas le compte Manus OAuth connecté et corriger l’activation réelle du rôle et des permissions. Le défaut de mairie implicite au premier `upsert` OAuth est corrigé et couvert par recette contrôlée ; le callback OAuth réel reste à confirmer.
+- [x] Concevoir un accès de test sans compte Manus, sans contourner la sécurité ni créer d’identifiants fictifs non traçables, puis préciser le parcours de connexion.
+- [x] Ajouter à l’encaissement une recherche serveur de redevables par identifiant national, identifiant fiscal, référence ou nom, avec sélection sans défilement de liste massive.
+- [x] Remplacer l’impression de la page entière par un aperçu et une impression du seul reçu, pour première émission et réimpression.
+- [x] Ajouter un menu Aide proposant des tutoriels pas à pas, filtrés dynamiquement selon les permissions réelles de l’utilisateur connecté.
+- [x] Enrichir le design bleu et blanc avec hiérarchie visuelle, gradients et micro-interactions accessibles, sans dégrader la lisibilité des agents.
+- [ ] Ajouter des tests et contrôles visuels pour l’activation des accès, la recherche d’encaissement, l’impression de reçu et l’aide contextuelle. Les contrôles généraux existent ; les preuves détaillées restent à compléter.
 - [x] Implémenter la consommation tardive des préautorisations Manus OAuth et l’autorisation métier par permissions de rôle.
 - [x] Implémenter la création d’un testeur avec lien d’accès temporaire à usage unique, traçable et révocable.
 - [x] Implémenter la recherche serveur de redevables par identifiants, référence ou nom dans le parcours d’encaissement.
@@ -119,3 +119,9 @@
 
 - [x] Corriger la normalisation des portées fiscales facultatives afin qu’une règle générique ne reçoive aucun périmètre territorial implicite et génère correctement ses obligations automatiques.
 - [x] Ajouter une recette et un test ciblés montrant qu’une nouvelle taxe municipale générique crée une obligation dès la création d’une activité correspondante.
+- [ ] Ajouter un test automatisé ciblé couvrant la création OAuth provisoire sans mairie puis l’activation d’une invitation avec rattachement et rôle.
+- [ ] Exécuter une validation de bout en bout avec un vrai compte Manus préautorisé : invitation en attente, callback OAuth, session créée, invitation activée et mairie/rôles visibles dans l’interface.
+- [ ] Documenter la limite externe de la validation OAuth si un second compte Manus réel n’est pas disponible.
+- [x] Ajouter un test automatisé ciblé pour la recherche d’encaissement prouvant la recherche par identifiant national, identifiant fiscal, référence et nom. Recette automatisée exécutée contre la procédure de recherche réelle avec données de formation temporaires et nettoyage confirmé.
+- [x] Ajouter une recette ou un test documenté montrant explicitement l’aide contextuelle filtrée selon les permissions réelles d’un compte limité.
+- [ ] Documenter séparément, avec preuve visuelle nominative, les quatre contrôles demandés : activation des accès, recherche d’encaissement, impression/réimpression de reçu et aide contextuelle.
