@@ -30,6 +30,7 @@ import {
   MapPinned,
   RefreshCw,
   ReceiptText,
+  Palette,
   Settings2,
   UsersRound,
   WalletCards,
@@ -50,7 +51,8 @@ const menuItems = [
   { icon: ClipboardCheck, label: "Clôtures", path: "/clotures" },
   { icon: BarChart3, label: "Rapports", path: "/rapports" },
   { icon: RefreshCw, label: "Synchronisation", path: "/synchronisation" },
-  { icon: Settings2, label: "Administration", path: "/administration" },
+  { icon: Settings2, label: "Administration", path: "/administration", adminOnly: true },
+  { icon: Palette, label: "Paramètres", path: "/parametres", adminOnly: true },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -86,19 +88,19 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
       <Sidebar collapsible="icon" className="border-r border-blue-100 bg-white text-slate-950 shadow-[8px_0_30px_rgba(15,75,160,.04)]">
         <SidebarHeader className="h-[78px] border-b border-blue-100 px-3 py-3">
           <button onClick={() => setLocation("/")} className="flex w-full items-center gap-3 rounded-xl px-2 text-left">
-            <span className="grid size-9 place-items-center rounded-xl bg-blue-700 text-white"><Landmark className="size-5" /></span>
+            <span className="grid size-9 place-items-center overflow-hidden rounded-xl text-white" style={{ backgroundColor: municipality?.primaryColor ?? "#0f5cdb" }}>{municipality?.logoUrl ? <img src={municipality.logoUrl} alt="Logo municipal" className="size-full object-contain p-1" /> : <Landmark className="size-5" />}</span>
             <span className="group-data-[collapsible=icon]:hidden">
-              <span className="block text-sm font-semibold leading-none">TaxeMarché</span>
-              <span className="mt-1 block text-[10px] font-medium uppercase tracking-[0.16em] text-slate-500">Opérations municipales</span>
+              <span className="block text-sm font-semibold leading-none">{municipality?.platformName ?? "Gestion des taxes municipales"}</span>
+              <span className="mt-1 block text-[10px] font-medium uppercase tracking-[0.16em] text-slate-500">Fiscalité municipale configurable</span>
             </span>
           </button>
         </SidebarHeader>
         <SidebarContent className="px-2 py-4">
           <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500 group-data-[collapsible=icon]:hidden">Navigation</p>
           <SidebarMenu>
-            {menuItems.map(item => (
+            {menuItems.filter(item => !item.adminOnly || user?.role === "admin").map(item => (
               <SidebarMenuItem key={item.path}>
-                <SidebarMenuButton isActive={location === item.path} tooltip={item.label} onClick={() => setLocation(item.path)} className="h-10 font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-800 data-[active=true]:bg-blue-700 data-[active=true]:text-white">
+                <SidebarMenuButton isActive={location === item.path} tooltip={item.label} onClick={() => setLocation(item.path)} style={location === item.path ? { backgroundColor: municipality?.primaryColor ?? "#0f5cdb", color: "white" } : undefined} className="h-10 font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-800 data-[active=true]:text-white">
                   <item.icon className="size-4" /><span>{item.label}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -116,7 +118,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
       </Sidebar>
       <SidebarInset className="bg-[#f6f9fe]">
         <header className="sticky top-0 z-20 flex h-[78px] items-center justify-between border-b border-blue-100 bg-white/95 px-4 backdrop-blur md:px-7">
-          <div className="flex items-center gap-3"><SidebarTrigger className="md:hidden" /><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-700">{municipality ? `${municipality.name} · ${municipality.code}` : "Mairie · Opérations"}</p><h2 className="mt-1 text-lg font-semibold tracking-tight text-slate-950">{isMobile ? activeLabel : "Gestion des taxes de marché"}</h2></div></div>
+          <div className="flex items-center gap-3"><SidebarTrigger className="md:hidden" /><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-700">{municipality ? `${municipality.name} · ${municipality.code}` : "Mairie · Opérations"}</p><h2 className="mt-1 text-lg font-semibold tracking-tight text-slate-950">{isMobile ? activeLabel : municipality?.platformName ?? "Gestion des taxes municipales"}</h2></div></div>
           <div title={online ? queueSize ? `${queueSize} opération(s) à synchroniser` : "Service en ligne" : `${queueSize} opération(s) conservée(s) localement`} className="flex items-center gap-2 rounded-full border border-blue-100 bg-white px-2.5 py-1.5 text-xs text-slate-700 sm:px-3">{online ? <span className="size-2 rounded-full bg-emerald-500" /> : <CloudOff className="size-3.5 text-amber-600" />}<span className="hidden sm:inline">{online ? queueSize ? `${queueSize} opération(s) à synchroniser` : "Service en ligne" : `${queueSize} opération(s) conservée(s) localement`}</span><span className="sr-only">{online ? queueSize ? `${queueSize} opération(s) à synchroniser` : "Service en ligne" : `${queueSize} opération(s) conservée(s) localement`}</span></div>
         </header>
         <main className="min-h-[calc(100vh-78px)] p-4 md:p-7">{children}</main>

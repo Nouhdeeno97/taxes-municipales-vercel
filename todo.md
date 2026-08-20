@@ -60,7 +60,7 @@
 - [x] Consigner la cause racine, la correction des données de formation et le résultat observé pour chaque liste protégée et compteur impacté.
 - [x] Rédiger un guide de test pas à pas de la plateforme, décrivant l’ordre d’utilisation, les résultats attendus et la manière de signaler les écarts.
 - [x] Diagnostiquer pourquoi les catégories et référentiels créés depuis Administration ne sont pas visibles ou sélectionnables dans les modules dépendants.
-- [ ] Remplacer la saisie manuelle des permissions par une matrice de cases à cocher, afficher les permissions réellement attribuées aux rôles et appliquer ces rôles aux utilisateurs. Interface et serveur ajoutés ; preuve de contrôle effectif par un compte affecté encore requise.
+- [x] Remplacer la saisie manuelle des permissions par une matrice de cases à cocher, afficher les permissions réellement attribuées aux rôles et appliquer ces rôles aux utilisateurs. Interface et serveur ajoutés ; contrôle effectif confirmé avec un compte local à rôle limité, autorisation `dashboard.read` et refus `FORBIDDEN` de `obligations.read`.
 - [ ] Ajouter un parcours sécurisé de gestion des utilisateurs compatible avec Manus OAuth : préautorisation, rattachement municipal, rôle, activation et première connexion du compte concerné. Parcours implémenté ; première connexion avec un second compte Manus encore à valider.
 - [x] Permettre la création hiérarchique complète Mairie → Secteur → Zone → Marché → Emplacement avec listes dépendantes et contrôles de parenté.
 - [ ] Clarifier et compléter le paramétrage fiscal : catégories, types de taxes, périodicités, règles tarifaires, prévisualisation du calcul et visibilité dans la génération d’obligations. Parcours guidé implémenté ; calcul et génération depuis un nouveau paramétrage à prouver de bout en bout.
@@ -71,7 +71,7 @@
 - [ ] Ajouter les tests automatisés et validations visuelles couvrant les nouveaux parcours d’administration, fiscalité, collecte, hors connexion et export. Tests de base et contrôles visuels effectués ; couverture de bout en bout à compléter.
 - [ ] Tester une coupure réseau réelle après consultation des écrans en ligne sur l’appareil cible, puis confirmer la conservation locale et la synchronisation à la reconnexion.
 - [ ] Tester un compte préautorisé Manus OAuth jusqu’à sa première connexion, puis vérifier son activation, son rattachement municipal et les rôles réellement reçus.
-- [ ] Vérifier qu’une permission accordée depuis la matrice autorise l’action correspondante et qu’une permission absente la bloque côté serveur.
+- [x] Vérifier qu’une permission accordée depuis la matrice autorise l’action correspondante et qu’une permission absente la bloque côté serveur.
 - [ ] Exécuter le cycle complet post-correction avec un scénario de formation autorisé : redevable, activité taxable, obligation, encaissement, aperçu, reçu, versement et clôture.
 - [ ] Vérifier le contenu des exports CSV et PDF sur les registres concernés, y compris les filtres appliqués.
 - [x] Afficher distinctement, dans le contrôle fiscal, le montant initial d’une obligation et son reste dû après encaissement.
@@ -105,3 +105,10 @@
 - [x] Afficher la dernière activité tracée de chaque compte dans le registre d’administration.
 - [x] Exécuter et documenter un parcours de recette isolé réel : création locale, connexion réussie, action, audit et aide filtrée par rôle.
 - [x] Exécuter et documenter une action métier ou administrative autorisée depuis le compte local connecté, avec son effet et sa trace d’audit distincte.
+- [x] Généraliser l’intitulé, les repères et les parcours afin d’indiquer clairement que la plateforme gère toutes les taxes municipales, y compris les taxes futures configurées par la mairie.
+- [x] Étendre le paramétrage fiscal pour créer, activer, désactiver et configurer de nouveaux types de taxes sans évolution du code.
+- [x] Compléter le parcours d’encaissement pour ouvrir le reçu généré dès la validation et permettre sa réimpression depuis le registre des encaissements.
+- [x] Enrichir l’aide dynamique avec l’ordre opérationnel, les prérequis de chaque tâche, les dépendances et le positionnement du rôle utilisateur dans le cycle de gestion.
+- [x] Ajouter un espace de paramétrage de la mairie et de la plateforme : nom, identité visuelle, logo, couleur principale et choix clair/sombre.
+- [x] Ajouter les migrations, contrôles d’accès, événements d’audit et tests automatisés associés aux nouveaux réglages et parcours multi-taxes.
+- [x] Vérifier visuellement les parcours de configuration fiscale, encaissement–reçu, aide séquencée et thèmes clair/sombre avant publication.

@@ -48,8 +48,9 @@ import { archiveLocalUser, createLocalUser, createTesterAccess, requireDb, reset
 import { getActivePermissionGrants, requireAccess, requireTerritoryAccess } from "../access";
 import { amountsMatch, isPaymentEligibleForDeposit, nextObligationState, receiptIntegrityHash, syncConflictResolutionPlan, syncReplayDisposition } from "../domainRules";
 import { requireAdmin, requireMunicipality, requirePlatformAdmin } from "../policies";
-import { protectedProcedure, router } from "../_core/trpc";
+import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 import { previewTaxAmount } from "../../shared/taxCalculation";
+import { storagePut } from "../storage";
 
 const money = z.number().finite().positive().max(1_000_000_000);
 const moneyValue = (value: number) => value.toFixed(2);
@@ -87,6 +88,12 @@ const taxpayerInput = z.object({
 });
 
 export const municipalRouter = router({
+  branding: publicProcedure.query(async () => {
+    const db = await requireDb();
+    const rows = await db.select({ name: municipalities.name, platformName: municipalities.platformName, logoUrl: municipalities.logoUrl, primaryColor: municipalities.primaryColor, appearanceMode: municipalities.appearanceMode })
+      .from(municipalities).where(eq(municipalities.isActive, true)).limit(1);
+    return rows[0] ?? null;
+  }),
   help: router({
     permissions: protectedProcedure.query(async ({ ctx }) => getActivePermissionGrants(ctx.user)),
   }),
@@ -134,11 +141,48 @@ export const municipalRouter = router({
   activeMunicipality: protectedProcedure.query(async ({ ctx }) => {
     const municipalityId = requireMunicipality(ctx.user);
     const db = await requireDb();
-    const municipality = await db.select({ id: municipalities.id, code: municipalities.code, name: municipalities.name, currency: municipalities.currency, timezone: municipalities.timezone })
+    const municipality = await db.select({ id: municipalities.id, code: municipalities.code, name: municipalities.name, platformName: municipalities.platformName, logoUrl: municipalities.logoUrl, primaryColor: municipalities.primaryColor, appearanceMode: municipalities.appearanceMode, currency: municipalities.currency, timezone: municipalities.timezone })
       .from(municipalities)
       .where(eq(municipalities.id, municipalityId))
       .limit(1);
     return mustGet(municipality[0], "Mairie active introuvable.");
+  }),
+
+  platformSettings: router({
+    get: protectedProcedure.query(async ({ ctx }) => {
+      const municipalityId = requireMunicipality(ctx.user);
+      const db = await requireDb();
+      const rows = await db.select({ id: municipalities.id, code: municipalities.code, name: municipalities.name, platformName: municipalities.platformName, logoUrl: municipalities.logoUrl, primaryColor: municipalities.primaryColor, appearanceMode: municipalities.appearanceMode, currency: municipalities.currency, timezone: municipalities.timezone })
+        .from(municipalities).where(eq(municipalities.id, municipalityId)).limit(1);
+      return mustGet(rows[0], "Mairie active introuvable.");
+    }),
+    update: protectedProcedure.input(z.object({
+      name: z.string().trim().min(3).max(180),
+      platformName: z.string().trim().min(3).max(180),
+      primaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Utilisez une couleur hexadécimale, par exemple #0F5CDB."),
+      appearanceMode: z.enum(["LIGHT", "DARK", "SYSTEM"]),
+    })).mutation(async ({ ctx, input }) => {
+      requireAdmin(ctx.user);
+      const municipalityId = requireMunicipality(ctx.user); const db = await requireDb();
+      const before = await db.select({ name: municipalities.name, platformName: municipalities.platformName, primaryColor: municipalities.primaryColor, appearanceMode: municipalities.appearanceMode }).from(municipalities).where(eq(municipalities.id, municipalityId)).limit(1);
+      await db.update(municipalities).set(input).where(eq(municipalities.id, municipalityId));
+      await audit(db, { municipalityId, actorId: ctx.user.id, action: "UPDATE", module: "platform-settings", entityType: "municipality", entityId: municipalityId, beforeValue: before[0], afterValue: input });
+      return { success: true };
+    }),
+    uploadLogo: protectedProcedure.input(z.object({ dataUrl: z.string().max(1_500_000) })).mutation(async ({ ctx, input }) => {
+      requireAdmin(ctx.user);
+      const municipalityId = requireMunicipality(ctx.user);
+      const matched = input.dataUrl.match(/^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/);
+      if (!matched) throw new TRPCError({ code: "BAD_REQUEST", message: "Le logo doit être une image PNG, JPEG ou WebP valide." });
+      const [, contentType, encoded] = matched; const content = Buffer.from(encoded, "base64");
+      if (!content.length || content.length > 1_000_000) throw new TRPCError({ code: "PAYLOAD_TOO_LARGE", message: "Le logo doit peser au maximum 1 Mo." });
+      const extension = contentType === "image/png" ? "png" : contentType === "image/webp" ? "webp" : "jpg";
+      const uploaded = await storagePut(`municipalities/${municipalityId}/logo.${extension}`, content, contentType);
+      const db = await requireDb(); const before = await db.select({ logoUrl: municipalities.logoUrl }).from(municipalities).where(eq(municipalities.id, municipalityId)).limit(1);
+      await db.update(municipalities).set({ logoUrl: uploaded.url }).where(eq(municipalities.id, municipalityId));
+      await audit(db, { municipalityId, actorId: ctx.user.id, action: "UPDATE_LOGO", module: "platform-settings", entityType: "municipality", entityId: municipalityId, beforeValue: before[0], afterValue: { logoUrl: uploaded.url } });
+      return { logoUrl: uploaded.url };
+    }),
   }),
 
   taxpayers: router({
@@ -338,6 +382,13 @@ export const municipalRouter = router({
       if (input.categoryId) mustGet((await db.select({ id: taxCategories.id }).from(taxCategories).where(and(eq(taxCategories.id, input.categoryId), eq(taxCategories.municipalityId, municipalityId))).limit(1))[0], "Catégorie de taxe introuvable.");
       const id = randomUUID(); await db.insert(taxTypes).values({ id, municipalityId, ...input, code: input.code.toUpperCase() }); await audit(db, { municipalityId, actorId: ctx.user.id, action: "CREATE", module: "catalog", entityType: "tax_type", entityId: id, afterValue: input }); return { id, ...input };
     }),
+    setTaxTypeActive: protectedProcedure.input(z.object({ taxTypeId: z.string().uuid(), isActive: z.boolean() })).mutation(async ({ ctx, input }) => {
+      requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb();
+      const taxType = mustGet((await db.select().from(taxTypes).where(and(eq(taxTypes.id, input.taxTypeId), eq(taxTypes.municipalityId, municipalityId))).limit(1))[0], "Type de taxe introuvable.");
+      await db.update(taxTypes).set({ isActive: input.isActive }).where(eq(taxTypes.id, taxType.id));
+      await audit(db, { municipalityId, actorId: ctx.user.id, action: input.isActive ? "ACTIVATE" : "DEACTIVATE", module: "catalog", entityType: "tax_type", entityId: taxType.id, beforeValue: taxType, afterValue: { isActive: input.isActive } });
+      return { id: taxType.id, isActive: input.isActive };
+    }),
     createPeriodicity: protectedProcedure.input(z.object({ code: z.string().trim().min(2).max(48), label: z.string().trim().min(2).max(120), calendarUnit: z.enum(["DAY", "WEEK", "MONTH", "QUARTER", "SEMESTER", "YEAR", "CUSTOM"]), intervalCount: z.number().int().min(1).max(365).default(1) })).mutation(async ({ ctx, input }) => {
       requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb(); const id = randomUUID();
       await db.insert(taxPeriodicities).values({ id, municipalityId, ...input, code: input.code.toUpperCase() }); await audit(db, { municipalityId, actorId: ctx.user.id, action: "CREATE", module: "catalog", entityType: "tax_periodicity", entityId: id, afterValue: input }); return { id, ...input };
@@ -372,6 +423,13 @@ export const municipalRouter = router({
       mustGet((await db.select({ id: taxPeriodicities.id }).from(taxPeriodicities).where(and(eq(taxPeriodicities.id, input.periodicityId), or(eq(taxPeriodicities.municipalityId, municipalityId), isNull(taxPeriodicities.municipalityId)))).limit(1))[0], "Périodicité introuvable.");
       const id = randomUUID(); const { scope, ...rule } = input; await db.insert(taxRules).values({ id, municipalityId, ...rule, code: rule.code.toUpperCase(), baseAmount: moneyValue(rule.baseAmount), penaltyRate: moneyValue(rule.penaltyRate), createdBy: ctx.user.id });
       if (scope) await db.insert(taxRuleScopes).values({ id: randomUUID(), taxRuleId: id, ...scope }); await audit(db, { municipalityId, actorId: ctx.user.id, action: "CREATE", module: "fiscality", entityType: "tax_rule", entityId: id, afterValue: input }); return { id, ...input };
+    }),
+    setRuleActive: protectedProcedure.input(z.object({ taxRuleId: z.string().uuid(), isActive: z.boolean() })).mutation(async ({ ctx, input }) => {
+      requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "fiscality", "manage"); const db = await requireDb();
+      const rule = mustGet((await db.select().from(taxRules).where(and(eq(taxRules.id, input.taxRuleId), eq(taxRules.municipalityId, municipalityId))).limit(1))[0], "Règle fiscale introuvable.");
+      await db.update(taxRules).set({ isActive: input.isActive }).where(eq(taxRules.id, rule.id));
+      await audit(db, { municipalityId, actorId: ctx.user.id, action: input.isActive ? "ACTIVATE" : "DEACTIVATE", module: "fiscality", entityType: "tax_rule", entityId: rule.id, beforeValue: rule, afterValue: { isActive: input.isActive } });
+      return { id: rule.id, isActive: input.isActive };
     }),
     assignRuleToActivity: protectedProcedure.input(z.object({ activityId: z.string().uuid(), taxRuleId: z.string().uuid(), startDate: z.coerce.date() })).mutation(async ({ ctx, input }) => {
       const municipalityId = await requireAccess(ctx.user, "fiscality", "manage"); const db = await requireDb();
@@ -413,7 +471,7 @@ export const municipalRouter = router({
       const itemTotal = input.items.reduce((sum, item) => sum + item.amount, 0); const allocationTotal = input.allocations.reduce((sum, allocation) => sum + allocation.amount, 0);
       if (!amountsMatch(itemTotal, allocationTotal)) throw new TRPCError({ code: "BAD_REQUEST", message: "Le total des allocations de paiement doit égaler le total affecté aux obligations." });
       if (input.offlineOperationId) { const existing = await db.select().from(paymentTransactions).where(eq(paymentTransactions.offlineOperationId, input.offlineOperationId)).limit(1); if (existing[0]) return { id: existing[0].id, reference: existing[0].reference, idempotent: true }; }
-      const id = randomUUID(); const paymentReference = reference("PAY"); const receiptReference = reference("REC");
+      const id = randomUUID(); const paymentReference = reference("PAY"); const receiptReference = reference("REC"); const receiptId = randomUUID();
       await db.transaction(async tx => {
         const obligations = await tx.select().from(taxObligations).where(and(eq(taxObligations.municipalityId, municipalityId), eq(taxObligations.taxpayerId, input.taxpayerId), inArray(taxObligations.id, input.items.map(item => item.obligationId))));
         if (obligations.length !== input.items.length) throw new TRPCError({ code: "BAD_REQUEST", message: "Une obligation est inconnue ou n’appartient pas au redevable sélectionné." });
@@ -423,12 +481,12 @@ export const municipalRouter = router({
         await tx.insert(paymentAllocations).values(input.allocations.map(allocation => ({ paymentTransactionId: id, paymentMethodId: allocation.paymentMethodId, amount: moneyValue(allocation.amount), externalReference: allocation.externalReference })));
         for (const item of input.items) { const obligation = mustGet(obligations.find(row => row.id === item.obligationId), "Obligation introuvable."); const next = nextObligationState(Number(obligation.remainingAmount), item.amount); await tx.update(taxObligations).set({ remainingAmount: moneyValue(next.remaining), status: next.status }).where(eq(taxObligations.id, obligation.id)); }
         const snapshot = { receiptReference, paymentReference, taxpayerId: input.taxpayerId, amount: moneyValue(itemTotal), collectedAt: input.collectedAt.toISOString(), items: input.items, allocations: input.allocations };
-        const integrityHash = receiptIntegrityHash(snapshot); const receiptId = randomUUID();
+        const integrityHash = receiptIntegrityHash(snapshot);
         await tx.insert(receipts).values({ id: receiptId, municipalityId, paymentTransactionId: id, reference: receiptReference, qrPayload: `TAXMUN:${receiptReference}:${integrityHash}`, integrityHash, immutableSnapshot: snapshot, issuedAt: new Date(), status: "FINAL" });
         await tx.insert(receiptPrintHistory).values({ receiptId, printType: "ORIGINAL", printedBy: ctx.user.id, deviceId: input.deviceId });
         await tx.insert(auditLogs).values({ municipalityId, actorId: ctx.user.id, action: "COLLECT", module: "payments", entityType: "payment", entityId: id, afterValue: { paymentReference, receiptReference, amount: moneyValue(itemTotal) }, deviceId: input.deviceId });
       });
-      return { id, reference: paymentReference, receiptReference, idempotent: false };
+      return { id, reference: paymentReference, receiptId, receiptReference, idempotent: false };
     }),
     reprintReceipt: protectedProcedure.input(z.object({ receiptId: z.string().uuid(), deviceId: z.string().trim().max(128).optional() })).mutation(async ({ ctx, input }) => {
       const municipalityId = await requireAccess(ctx.user, "receipts", "reprint"); const db = await requireDb(); const receipt = mustGet((await db.select().from(receipts).where(and(eq(receipts.id, input.receiptId), eq(receipts.municipalityId, municipalityId))).limit(1))[0], "Reçu introuvable.");

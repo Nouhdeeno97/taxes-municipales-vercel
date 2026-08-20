@@ -107,3 +107,30 @@ Une seconde recette éphémère a confirmé qu’un compte local connecté ne se
 | Effet métier | Opération enregistrée avec le statut `SYNCED` et `idempotent: false` lors du premier envoi. |
 | Preuve d’audit | `LOCAL_LOGIN` puis `SYNC` associés au compte local ayant effectué l’action. |
 | Nettoyage | Compte de recette archivé et session invalidée ; aucun accès de test actif conservé. |
+
+### Contrôle effectif de la matrice des permissions
+
+Un rôle local temporaire, explicitement nommé `RECETTE-LIMITEE-*`, a été créé avec une seule permission : **Consulter le tableau de bord**. Un compte local non administrateur a reçu exclusivement ce rôle puis s’est connecté avec son identifiant municipal. La lecture du tableau de bord a été acceptée par le serveur et a retourné cinq indicateurs. La consultation des obligations fiscales, absente de la matrice du rôle, a été refusée par le serveur avec le code `FORBIDDEN` avant toute lecture de données.
+
+Le compte de recette a été archivé à la fin de la vérification ; sa session a été révoquée. Le rôle temporaire a également été retiré de l’usage actif. Cette recette démontre que la matrice n’est pas décorative : une permission cochée autorise l’opération correspondante et une permission absente est bloquée côté serveur.
+
+| Permission contrôlée | Résultat |
+|---|---|
+| `dashboard.read` attribuée | Lecture du tableau de bord acceptée ; cinq indicateurs retournés. |
+| `obligations.read` absente | Accès refusé avec `FORBIDDEN`, sans exposition des obligations. |
+| Révocation du compte | Archivage et invalidation de session confirmés. |
+| Nettoyage du rôle | Rôle de recette temporaire désactivé après validation. |
+
+## Validation de la version multi-taxes et paramétrable
+
+La plateforme a été vérifiée comme un outil de **fiscalité municipale générale**, et non comme un outil réservé aux marchés. L’espace Fiscalité présente désormais la création séquencée d’une catégorie, d’un type de taxe, d’une périodicité et d’une règle tarifaire. Il expose également l’activation et la désactivation de ces éléments, de sorte qu’une nouvelle taxe — stationnement, occupation du domaine public, publicité, licence, droit de place ou toute taxe municipale future — puisse être paramétrée sans évolution du logiciel.
+
+Le parcours de collecte affiche maintenant le reçu final dès qu’un encaissement est validé. L’agent peut contrôler la pièce, l’imprimer isolément et la remettre au redevable. Depuis l’historique, l’action **Voir / réimprimer** ouvre le même reçu immuable ; la réimpression est enregistrée avant son ouverture à l’impression. L’aide présente un cycle opérationnel numéroté, les prérequis de chaque étape et ce que chaque intervention permet ensuite.
+
+| Écran contrôlé | Résultat observé |
+|---|---|
+| Fiscalité | En-tête « Toutes les taxes de la mairie, aujourd’hui et demain », assistant de création et catalogue activable/désactivable. |
+| Encaissement | Historique explicite, reçu final après validation et action de consultation/réimpression conservée dans le tableau. |
+| Paramètres | Nom de mairie, nom de plateforme, logo stocké de manière sécurisée, couleur principale et modes clair, sombre ou système. |
+| Aide | Parcours numéroté « Où vous situez-vous dans le cycle ? » filtré selon les permissions du compte. |
+| Validation technique | 36 tests automatisés réussis sur 11 fichiers et compilation de production réussie. |
