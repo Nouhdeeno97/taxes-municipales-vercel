@@ -320,3 +320,15 @@ Les listes exhaustives qui limitaient les parcours **Activités** et **Fiscalit�
 La migration additive `0007` étend les portées fiscales sans modifier les données existantes. La validation finale compte **62 tests réussis sur 24 fichiers**, TypeScript sans erreur et compilation de production valide. L’aide contextuelle explique désormais la recherche de redevables, les critères de groupe, la désactivation d’une règle et la génération par lots.
 
 Les contrôles visuels authentifiés en résolution bureau **1 280 × 900** confirment les trois parcours : la page Activités annonce la recherche préalable par référence, nom et identifiants ; la page Fiscalité présente les champs de groupe, la recherche ciblée, les actions d’affectation et de génération de premier lot ; la page Aide expose le tutoriel « Configurer une taxe et générer des obligations » dans le cycle opérationnel filtré par permissions.
+
+## Correction du parcours fiscal par lots — 20 août 2026
+
+Le parcours Fiscalité a été rectifié afin de distinguer sans ambiguïté **la création de la règle tarifaire**, **son affectation aux activités** et **la génération des obligations**. Les champs de groupe qui avaient été introduits dans le formulaire de création de règle ont été supprimés : ce formulaire ne conserve désormais que le type de taxe, la périodicité, le code, le libellé, le montant positif, la date d’effet, le délai de grâce et la pénalité éventuelle.
+
+| Étape | Contrôle visuel et fonctionnel | Garantie apportée |
+|---|---|---|
+| 3 — Choisir les activités | Une case permet de sélectionner toutes les activités actives. Des cases dynamiques regroupent aussi les activités par type et par libellé ; une recherche cible une ou plusieurs activités par identifiant national/fiscal, référence, nom ou libellé. | L’agent peut choisir un ou plusieurs lots, ou compléter avec des activités précises, sans modifier le tarif. |
+| 4 — Affecter la règle | La règle tarifaire active est choisie après la sélection. L’affectation est traitée par paquets de 200, avec contrôle des doublons. | Une même règle ne reçoit pas d’affectation active en double sur une activité. |
+| 5 — Générer les obligations | La même sélection et une règle affectée sont utilisées pour une période donnée. | La génération conserve le montant de base dans `expectedAmount`, applique séparément l’exonération dans `discountAmount`, calcule le reste dû et évite les doublons de période. |
+
+La compilation de production est valide et la suite automatisée compte désormais **63 tests réussis sur 24 fichiers**. La vérification visuelle en résolution bureau confirme le nouvel ordre des étapes, les cases de sélection par lot et le tableau des obligations qui distingue le montant initial du reste dû.

@@ -14,4 +14,8 @@ describe("previewTaxAmount", () => {
   it("borne les taux et évite les montants négatifs", () => {
     expect(previewTaxAmount({ baseAmount: -10, exemptionRate: 2, penaltyRate: -1, daysLate: 2 })).toMatchObject({ totalAmount: 0 });
   });
+
+  it("conserve le montant tarifaire initial lorsqu’une exonération réduit le montant à percevoir", () => {
+    expect(previewTaxAmount({ baseAmount: 1_500, exemptionRate: 1 })).toMatchObject({ baseAmount: 1_500, exemptionAmount: 1_500, totalAmount: 0 });
+  });
 });

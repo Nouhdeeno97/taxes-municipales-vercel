@@ -148,3 +148,8 @@
 - [x] Enregistrer les règles fiscales comme règles de groupe pérennes, activables et désactivables, afin qu’elles s’appliquent automatiquement aux activités existantes et futures correspondant aux critères sans réaffectation manuelle.
 - [x] Faire reposer la génération d’obligations sur les mêmes critères de groupe actifs, avec aperçu du périmètre, exclusions explicites, idempotence et traçabilité des règles appliquées.
 - [x] Ajouter migrations, tests de montée en charge logiques, contrôles visuels et aide contextuelle pour les recherches, groupes, désactivations et générations d’obligations ciblées.
+- [x] Rétablir le formulaire strict des règles tarifaires afin que la création d’une règle conserve clairement le montant, la périodicité, la date d’effet et les paramètres de calcul, sans les confondre avec l’affectation de la règle.
+- [x] Garantir que toute obligation générée conserve un montant initial positif issu du barème applicable et que ce montant reste disponible pour l’encaissement.
+- [x] Remplacer les critères de groupe du formulaire de règle par une sélection de lots dans les seuls parcours « Affecter la règle » et « Générer les obligations » : toutes les activités, types d’activité, libellés d’activité et sélection multiple à cocher.
+- [x] Ajouter, dans ces deux parcours, une recherche ciblée d’une ou plusieurs activités par identifiant national, identifiant fiscal, référence ou nom du redevable, avec sélection par cases à cocher.
+- [x] Ajouter les tests automatisés et les contrôles visuels garantissant la séparation entre tarification, affectation par lots et génération d’obligations avec montant.
