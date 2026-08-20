@@ -6,6 +6,7 @@ vi.mock("./db", () => ({ requireDb }));
 import { auditLogs, taxRules, taxRuleScopes } from "../drizzle/schema";
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
+import { activitySelectionInput } from "./routers/municipal";
 
 const municipalityId = "20000000-0000-4000-8000-000000000001";
 const activityTypeId = "20000000-0000-4000-8000-000000000411";
@@ -75,5 +76,25 @@ describe("municipal.taxation.createRule — tarification indépendante", () => {
       penaltyRate: 0,
       validFrom: new Date("2026-08-20T00:00:00.000Z"),
     })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+});
+
+describe("sélection fiscale par lots", () => {
+  it("accepte les types d’activité et les types de localisation comme critères de lot", () => {
+    expect(activitySelectionInput.parse({
+      all: false,
+      activityTypeIds: [activityTypeId],
+      activityLocationTypes: ["MARKET", "MARKET_LOCATION"],
+      activityIds: [],
+    })).toMatchObject({ activityTypeIds: [activityTypeId], activityLocationTypes: ["MARKET", "MARKET_LOCATION"] });
+  });
+
+  it("refuse l’ancien critère de lot par libellé d’activité", () => {
+    expect(() => activitySelectionInput.parse({
+      all: false,
+      activityTypeIds: [],
+      activityLabels: ["Vente de vivres"],
+      activityIds: [],
+    })).toThrow();
   });
 });

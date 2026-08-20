@@ -153,3 +153,6 @@
 - [x] Remplacer les critères de groupe du formulaire de règle par une sélection de lots dans les seuls parcours « Affecter la règle » et « Générer les obligations » : toutes les activités, types d’activité, libellés d’activité et sélection multiple à cocher.
 - [x] Ajouter, dans ces deux parcours, une recherche ciblée d’une ou plusieurs activités par identifiant national, identifiant fiscal, référence ou nom du redevable, avec sélection par cases à cocher.
 - [x] Ajouter les tests automatisés et les contrôles visuels garantissant la séparation entre tarification, affectation par lots et génération d’obligations avec montant.
+- [x] Remplacer les lots par libellé d’activité de l’étape 3 Fiscalité par des lots dynamiques par type de localisation, tout en conservant les types d’activité et la recherche d’activités précises.
+- [x] Retirer le code « LBV » de l’intitulé de la mairie affiché dans l’en-tête de l’application.
+- [x] Mettre à jour l’aide et le tutoriel fiscal afin d’expliquer la sélection par types d’activité et de localisation, puis ajouter les tests et la validation visuelle associés.

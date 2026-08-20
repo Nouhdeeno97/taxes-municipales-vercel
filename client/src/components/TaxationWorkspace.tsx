@@ -12,9 +12,11 @@ import { toast } from "sonner";
 import { previewTaxAmount } from "@shared/taxCalculation";
 
 type ErrorLike = { message: string };
+type ActivityLocationType = "ZONE" | "MARKET" | "MARKET_LOCATION" | "MOBILE" | "CUSTOM";
 const today = () => new Date().toISOString().slice(0, 10);
 const money = new Intl.NumberFormat("fr-FR", { style: "decimal", maximumFractionDigits: 0 });
 const selectStyle = "mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900";
+const locationTypeLabels: Record<ActivityLocationType, string> = { ZONE: "Zone", MARKET: "Marché", MARKET_LOCATION: "Emplacement", MOBILE: "Activité mobile", CUSTOM: "Adresse personnalisée" };
 
 function TaxEstimatePreview() {
   const [baseAmount, setBaseAmount] = useState(1000);
@@ -56,7 +58,7 @@ export function TaxationWorkspace() {
   const [activityQuery, setActivityQuery] = useState("");
   const [selectAllActivities, setSelectAllActivities] = useState(false);
   const [selectedActivityTypeIds, setSelectedActivityTypeIds] = useState<string[]>([]);
-  const [selectedActivityLabels, setSelectedActivityLabels] = useState<string[]>([]);
+  const [selectedActivityLocationTypes, setSelectedActivityLocationTypes] = useState<ActivityLocationType[]>([]);
   const [selectedActivityIds, setSelectedActivityIds] = useState<string[]>([]);
   const activitySearch = trpc.municipal.activities.search.useQuery({ query: activityQuery || undefined, page: 0 }, { enabled: activityQuery.trim().length >= 2 });
   const activityLots = trpc.municipal.activities.selectionLots.useQuery();
@@ -79,9 +81,9 @@ export function TaxationWorkspace() {
   const taxCategoryOptions = [...(catalog.data?.taxCategories ?? []), ...localCreates.filter(item => item.command === "TAX_CATEGORY").map(item => ({ id: item.id, label: String(item.payload.label) }))];
   const taxTypeOptions = [...activeTaxTypes, ...localCreates.filter(item => item.command === "TAX_TYPE").map(item => ({ id: item.id, label: String(item.payload.label), isActive: true }))];
   const periodicityOptions = [...(catalog.data?.periodicities?.filter(item => item.isActive) ?? []), ...localCreates.filter(item => item.command === "PERIODICITY").map(item => ({ id: item.id, label: String(item.payload.label), isActive: true }))];
-  const selection = { all: selectAllActivities, activityTypeIds: selectedActivityTypeIds, activityLabels: selectedActivityLabels, activityIds: selectedActivityIds };
-  const hasSelection = selection.all || selection.activityTypeIds.length > 0 || selection.activityLabels.length > 0 || selection.activityIds.length > 0;
-  const toggleSelection = (value: string, selected: string[], setSelected: (values: string[]) => void) => setSelected(selected.includes(value) ? selected.filter(item => item !== value) : [...selected, value]);
+  const selection = { all: selectAllActivities, activityTypeIds: selectedActivityTypeIds, activityLocationTypes: selectedActivityLocationTypes, activityIds: selectedActivityIds };
+  const hasSelection = selection.all || selection.activityTypeIds.length > 0 || selection.activityLocationTypes.length > 0 || selection.activityIds.length > 0;
+  const toggleSelection = <T extends string>(value: T, selected: T[], setSelected: (values: T[]) => void) => setSelected(selected.includes(value) ? selected.filter(item => item !== value) : [...selected, value]);
 
   return (
     <div className="space-y-6">
@@ -147,15 +149,15 @@ export function TaxationWorkspace() {
       </div>
 
       <Card className="border-blue-100">
-        <CardHeader><Badge className="w-fit bg-blue-700">Étape 3</Badge><CardTitle className="mt-3">Choisir les activités concernées</CardTitle><CardDescription>Cochez toutes les activités, un ou plusieurs lots par type ou libellé, puis complétez si nécessaire avec une recherche par identifiant national/fiscal, référence ou nom. Cette sélection sera utilisée à l’étape 4 ou 5.</CardDescription></CardHeader>
+        <CardHeader><Badge className="w-fit bg-blue-700">Étape 3</Badge><CardTitle className="mt-3">Choisir les activités concernées</CardTitle><CardDescription>Cochez toutes les activités, un ou plusieurs lots par type d’activité ou type de localisation, puis complétez si nécessaire avec une recherche par identifiant national/fiscal, référence ou nom. Cette sélection sera utilisée à l’étape 4 ou 5.</CardDescription></CardHeader>
         <CardContent className="space-y-5">
           <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-950"><input type="checkbox" checked={selectAllActivities} onChange={event => setSelectAllActivities(event.target.checked)} className="size-4 accent-blue-700" />Toutes les activités actives</label>
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="rounded-xl border border-slate-200 p-4"><p className="font-semibold text-slate-950">Lots par type d’activité</p><div className="mt-3 grid gap-2 sm:grid-cols-2">{activityLots.data?.activityTypes.map(type => <label key={type.id} className="flex cursor-pointer items-center gap-2 rounded-lg bg-slate-50 p-2 text-sm text-slate-700"><input type="checkbox" checked={selectedActivityTypeIds.includes(type.id)} onChange={() => toggleSelection(type.id, selectedActivityTypeIds, setSelectedActivityTypeIds)} className="size-4 accent-blue-700" /><span>{type.label} <strong className="text-slate-500">({type.count})</strong></span></label>) ?? <p className="text-sm text-slate-500">Aucun type avec activité active.</p>}</div></div>
-            <div className="rounded-xl border border-slate-200 p-4"><p className="font-semibold text-slate-950">Lots par libellé d’activité</p><div className="mt-3 grid max-h-60 gap-2 overflow-y-auto sm:grid-cols-2">{activityLots.data?.labels.map(item => <label key={item.label} className="flex cursor-pointer items-center gap-2 rounded-lg bg-slate-50 p-2 text-sm text-slate-700"><input type="checkbox" checked={selectedActivityLabels.includes(item.label)} onChange={() => toggleSelection(item.label, selectedActivityLabels, setSelectedActivityLabels)} className="size-4 accent-blue-700" /><span>{item.label} <strong className="text-slate-500">({item.count})</strong></span></label>) ?? <p className="text-sm text-slate-500">Aucun libellé disponible.</p>}</div></div>
+            <div className="rounded-xl border border-slate-200 p-4"><p className="font-semibold text-slate-950">Lots par type de localisation</p><div className="mt-3 grid gap-2 sm:grid-cols-2">{activityLots.data?.locationTypes.map(item => <label key={item.locationType} className="flex cursor-pointer items-center gap-2 rounded-lg bg-slate-50 p-2 text-sm text-slate-700"><input type="checkbox" checked={selectedActivityLocationTypes.includes(item.locationType)} onChange={() => toggleSelection(item.locationType, selectedActivityLocationTypes, setSelectedActivityLocationTypes)} className="size-4 accent-blue-700" /><span>{locationTypeLabels[item.locationType] ?? item.locationType} <strong className="text-slate-500">({item.count})</strong></span></label>) ?? <p className="text-sm text-slate-500">Aucun type de localisation disponible.</p>}</div></div>
           </div>
           <div className="rounded-xl border border-slate-200 p-4"><Label>Rechercher une ou plusieurs activités précises</Label><Input value={activityQuery} onChange={event => setActivityQuery(event.target.value)} placeholder="Identifiant national ou fiscal, référence, nom du redevable, libellé d’activité" className="mt-2" /><div className="mt-3 grid gap-2">{activityQuery.trim().length >= 2 && !activitySearch.data?.rows.length ? <p className="text-sm text-slate-500">Aucune activité trouvée.</p> : activitySearch.data?.rows.map(({ activity, taxpayer }) => <label key={activity.id} className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-3 text-sm"><input type="checkbox" checked={selectedActivityIds.includes(activity.id)} onChange={() => toggleSelection(activity.id, selectedActivityIds, setSelectedActivityIds)} className="mt-0.5 size-4 accent-blue-700" /><span><strong className="text-slate-950">{activity.reference} · {activity.label}</strong><span className="mt-1 block text-slate-500">{taxpayer?.nationalId ?? taxpayer?.taxId ?? taxpayer?.reference ?? "Redevable sans identifiant renseigné"}</span></span></label>)}</div></div>
-          <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600">Sélection actuelle : <strong>{selectAllActivities ? "toutes les activités actives" : `${selectedActivityTypeIds.length} type(s), ${selectedActivityLabels.length} libellé(s) et ${selectedActivityIds.length} activité(s) précise(s)`}</strong>. Les lots sont traités par paquets de 200 activités ; relancez l’action si un message indique qu’un lot suivant reste à traiter.</p>
+          <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600">Sélection actuelle : <strong>{selectAllActivities ? "toutes les activités actives" : `${selectedActivityTypeIds.length} type(s) d’activité, ${selectedActivityLocationTypes.length} type(s) de localisation et ${selectedActivityIds.length} activité(s) précise(s)`}</strong>. Les lots sont traités par paquets de 200 activités ; relancez l’action si un message indique qu’un lot suivant reste à traiter.</p>
         </CardContent>
       </Card>
 

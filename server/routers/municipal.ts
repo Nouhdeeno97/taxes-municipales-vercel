@@ -55,13 +55,14 @@ import { storagePut } from "../storage";
 const money = z.number().finite().positive().max(1_000_000_000);
 const moneyValue = (value: number) => value.toFixed(2);
 const reference = (prefix: string) => `${prefix}-${new Date().getFullYear()}-${randomUUID().slice(0, 8).toUpperCase()}`;
-const activitySelectionInput = z.object({
+const activityLocationTypeInput = z.enum(["ZONE", "MARKET", "MARKET_LOCATION", "MOBILE", "CUSTOM"]);
+export const activitySelectionInput = z.object({
   all: z.boolean().default(false),
   activityTypeIds: z.array(z.string().uuid()).max(100).default([]),
-  activityLabels: z.array(z.string().trim().min(1).max(220)).max(100).default([]),
+  activityLocationTypes: z.array(activityLocationTypeInput).max(5).default([]),
   activityIds: z.array(z.string().uuid()).max(500).default([]),
-}).refine(value => value.all || value.activityTypeIds.length > 0 || value.activityLabels.length > 0 || value.activityIds.length > 0, {
-  message: "Sélectionnez toutes les activités, au moins un type, un libellé ou une activité recherchée.",
+}).refine(value => value.all || value.activityTypeIds.length > 0 || value.activityLocationTypes.length > 0 || value.activityIds.length > 0, {
+  message: "Sélectionnez toutes les activités, au moins un type d’activité, un type de localisation ou une activité recherchée.",
 });
 
 async function audit(
@@ -341,11 +342,11 @@ export const municipalRouter = router({
     }),
     selectionLots: protectedProcedure.query(async ({ ctx }) => {
       const municipalityId = await requireAccess(ctx.user, "activities", "read"); const db = await requireDb();
-      const [typeRows, labelRows] = await Promise.all([
+      const [typeRows, locationTypeRows] = await Promise.all([
         db.select({ id: activityTypes.id, label: activityTypes.label, count: sql<number>`count(${activities.id})` }).from(activities).innerJoin(activityTypes, eq(activities.activityTypeId, activityTypes.id)).where(and(eq(activities.municipalityId, municipalityId), eq(activities.status, "ACTIVE"))).groupBy(activityTypes.id, activityTypes.label).orderBy(activityTypes.label),
-        db.select({ label: activities.label, count: sql<number>`count(${activities.id})` }).from(activities).where(and(eq(activities.municipalityId, municipalityId), eq(activities.status, "ACTIVE"))).groupBy(activities.label).orderBy(activities.label).limit(100),
+        db.select({ locationType: activities.locationType, count: sql<number>`count(${activities.id})` }).from(activities).where(and(eq(activities.municipalityId, municipalityId), eq(activities.status, "ACTIVE"))).groupBy(activities.locationType).orderBy(activities.locationType),
       ]);
-      return { activityTypes: typeRows.map(row => ({ ...row, count: Number(row.count) })), labels: labelRows.map(row => ({ ...row, count: Number(row.count) })) };
+      return { activityTypes: typeRows.map(row => ({ ...row, count: Number(row.count) })), locationTypes: locationTypeRows.map(row => ({ ...row, count: Number(row.count) })) };
     }),
     create: protectedProcedure.input(z.object({ taxpayerId: z.string().uuid(), activityTypeId: z.string().uuid(), label: z.string().trim().min(2).max(220), locationType: z.enum(["ZONE", "MARKET", "MARKET_LOCATION", "MOBILE", "CUSTOM"]), zoneId: z.string().uuid().optional(), marketId: z.string().uuid().optional(), marketLocationId: z.string().uuid().optional(), address: z.string().trim().max(500).optional(), startedAt: z.coerce.date() })).mutation(async ({ ctx, input }) => {
       const municipalityId = await requireAccess(ctx.user, "activities", "create");
@@ -505,7 +506,7 @@ export const municipalRouter = router({
     assignRuleToSelection: protectedProcedure.input(z.object({ taxRuleId: z.string().uuid(), startDate: z.coerce.date(), selection: activitySelectionInput, offset: z.number().int().min(0).default(0), limit: z.number().int().min(1).max(500).default(200) })).mutation(async ({ ctx, input }) => {
       const municipalityId = await requireAccess(ctx.user, "fiscality", "manage"); const db = await requireDb();
       const rule = mustGet((await db.select({ id: taxRules.id, label: taxRules.label }).from(taxRules).where(and(eq(taxRules.id, input.taxRuleId), eq(taxRules.municipalityId, municipalityId), eq(taxRules.isActive, true))).limit(1))[0], "Règle fiscale active introuvable.");
-      const choices = [input.selection.activityTypeIds.length ? inArray(activities.activityTypeId, input.selection.activityTypeIds) : undefined, input.selection.activityLabels.length ? inArray(activities.label, input.selection.activityLabels) : undefined, input.selection.activityIds.length ? inArray(activities.id, input.selection.activityIds) : undefined].filter(Boolean) as any[];
+      const choices = [input.selection.activityTypeIds.length ? inArray(activities.activityTypeId, input.selection.activityTypeIds) : undefined, input.selection.activityLocationTypes.length ? inArray(activities.locationType, input.selection.activityLocationTypes) : undefined, input.selection.activityIds.length ? inArray(activities.id, input.selection.activityIds) : undefined].filter(Boolean) as any[];
       const targets = await db.select({ id: activities.id }).from(activities).where(and(eq(activities.municipalityId, municipalityId), eq(activities.status, "ACTIVE"), input.selection.all ? undefined : or(...choices))).orderBy(activities.id).limit(input.limit).offset(input.offset);
       let assignedCount = 0;
       for (const target of targets) {
@@ -535,7 +536,7 @@ export const municipalRouter = router({
       const municipalityId = await requireAccess(ctx.user, "obligations", "generate"); const db = await requireDb();
       const rule = mustGet((await db.select().from(taxRules).where(and(eq(taxRules.id, input.taxRuleId), eq(taxRules.municipalityId, municipalityId), eq(taxRules.isActive, true))).limit(1))[0], "Règle fiscale active introuvable.");
       if (Number(rule.baseAmount) <= 0) throw new TRPCError({ code: "CONFLICT", message: `La règle ${rule.label} ne possède pas de montant tarifaire positif.` });
-      const choices = [input.selection.activityTypeIds.length ? inArray(activities.activityTypeId, input.selection.activityTypeIds) : undefined, input.selection.activityLabels.length ? inArray(activities.label, input.selection.activityLabels) : undefined, input.selection.activityIds.length ? inArray(activities.id, input.selection.activityIds) : undefined].filter(Boolean) as any[];
+      const choices = [input.selection.activityTypeIds.length ? inArray(activities.activityTypeId, input.selection.activityTypeIds) : undefined, input.selection.activityLocationTypes.length ? inArray(activities.locationType, input.selection.activityLocationTypes) : undefined, input.selection.activityIds.length ? inArray(activities.id, input.selection.activityIds) : undefined].filter(Boolean) as any[];
       const targets = await db.select({ activity: activities, taxpayer: taxpayers }).from(activities).innerJoin(taxpayers, eq(activities.currentTaxpayerId, taxpayers.id)).where(and(eq(activities.municipalityId, municipalityId), eq(activities.status, "ACTIVE"), input.selection.all ? undefined : or(...choices))).orderBy(activities.id).limit(input.limit).offset(input.offset);
       const created: string[] = []; let notAssignedCount = 0;
       for (const { activity, taxpayer } of targets) {

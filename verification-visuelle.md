@@ -332,3 +332,18 @@ Le parcours Fiscalité a été rectifié afin de distinguer sans ambiguïté **l
 | 5 — Générer les obligations | La même sélection et une règle affectée sont utilisées pour une période donnée. | La génération conserve le montant de base dans `expectedAmount`, applique séparément l’exonération dans `discountAmount`, calcule le reste dû et évite les doublons de période. |
 
 La compilation de production est valide et la suite automatisée compte désormais **63 tests réussis sur 24 fichiers**. La vérification visuelle en résolution bureau confirme le nouvel ordre des étapes, les cases de sélection par lot et le tableau des obligations qui distingue le montant initial du reste dû.
+
+## Ajustement final des lots par localisation — 20 août 2026
+
+L’étape 3 de Fiscalité a été simplifiée pour rester utilisable lorsque le nombre d’activités devient très important. Les lots par libellé d’activité sont retirés ; ils sont remplacés par des **lots dynamiques par type de localisation**. La sélection conserve les types d’activité, la case « Toutes les activités actives » et la recherche ciblée d’activités précises.
+
+| Élément vérifié | Résultat |
+|---|---|
+| Lots par type d’activité | Cases dynamiques conservées avec le nombre d’activités actives dans chaque type. |
+| Lots par type de localisation | Cases dynamiques pour Zone, Marché, Emplacement, Activité mobile et Adresse personnalisée, avec décompte des activités correspondantes. |
+| Recherche précise | Recherche par référence ou libellé d’activité, ainsi que par nom, identifiant national ou identifiant fiscal du redevable ; plusieurs résultats peuvent être cochés. |
+| Affectation et génération | Les deux étapes utilisent exactement la même sélection, sans modifier le montant de la règle tarifaire. |
+| En-tête municipal | Le nom affiché est désormais « Mairie d’Owendo » sans le suffixe de code « LBV ». |
+| Aide et tutoriel | Le tutoriel fiscal explique la séparation tarif/affectation, les lots par type d’activité et de localisation, puis la génération idempotente. |
+
+La capture en résolution bureau **1 280 × 900** confirme l’affichage des lots par type de localisation et de l’intitulé municipal sans code. Les tests de contrat vérifient que les types de localisation sont acceptés et que l’ancien critère par libellé est refusé. La suite compte **65 tests réussis sur 24 fichiers**, TypeScript sans erreur et build de production valide.
