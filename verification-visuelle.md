@@ -291,3 +291,17 @@ La file durable ne se limite plus aux redevables. Elle accepte désormais les co
 | Administration sensible | Consultation des données déjà visitées possible grâce au cache. Création de comptes, modifications de rôles/permissions, archivage, impression et validation comptable restent soumises à une connexion et aux contrôles d’accès. | Aucune écriture de sécurité ou décision comptable ne peut être finalisée localement. |
 
 Les contrôles techniques confirment **59 tests réussis sur 23 fichiers**, TypeScript sans erreur et build de production valide. Les captures de Fiscalité, Activités, Encaissement, Versements, Clôtures et Synchronisation ont été revues après le branchement des files différées. Une vérification terrain distincte reste requise pour chaque famille de formulaires, afin de confirmer le comportement du navigateur et de l’appareil réellement utilisé.
+
+### Contrôles en ligne explicités
+
+Une bannière contextuelle apparaît désormais en mode hors connexion pour chaque espace où une écriture doit rester sous contrôle serveur. Elle remplace les échecs opaques par une explication opérationnelle.
+
+| Écran | Message de continuité hors connexion |
+|---|---|
+| Utilisateurs | Les comptes déjà chargés restent consultables ; création, activation, désactivation et archivage exigent une connexion. |
+| Rôles et permissions | La consultation reste disponible ; toute modification de droits exige une connexion sécurisée. |
+| Administration et paramètres | Les données déjà chargées restent visibles ; toute modification de plateforme exige une connexion. |
+| Journal d’audit | Les événements déjà consultés peuvent rester visibles ; aucune écriture ne peut être modifiée localement. |
+| Reçus | Les pièces déjà consultées restent accessibles ; impression et réimpression attendent le contrôle serveur. |
+
+Le test de cette politique de routage contextuel s’ajoute à la suite, qui compte désormais **61 tests réussis sur 24 fichiers**, avec TypeScript sans erreur et une compilation de production valide.

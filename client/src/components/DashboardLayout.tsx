@@ -18,6 +18,7 @@ import { useIsMobile } from "@/hooks/useMobile";
 import { useOfflineQueue } from "@/hooks/useOfflineQueue";
 import { useOfflineCreate } from "@/hooks/useOfflineCreate";
 import { trpc } from "@/lib/trpc";
+import { getOfflineCapabilityMessage } from "@shared/offlineCapabilities";
 import {
   Activity,
   BarChart3,
@@ -89,6 +90,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const isMobile = useIsMobile();
   const activeLabel = menuItems.find(item => item.path === location)?.label ?? "Gestion municipale";
   const initials = user?.name?.split(" ").map(part => part[0]).join("").slice(0, 2).toUpperCase() || "UM";
+  const onlineOnlyMessage = getOfflineCapabilityMessage(location);
 
   return (
     <SidebarProvider>
@@ -128,7 +130,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-3"><SidebarTrigger className="md:hidden" /><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-700">{municipality ? `${municipality.name} · ${municipality.code}` : "Mairie · Opérations"}</p><h2 className="mt-1 text-lg font-semibold tracking-tight text-slate-950">{isMobile ? activeLabel : municipality?.platformName ?? "Gestion des taxes municipales"}</h2></div></div>
           <div title={online ? queueSize ? `${queueSize} opération(s) à synchroniser` : "Service en ligne" : `${queueSize} opération(s) conservée(s) localement`} className="flex items-center gap-2 rounded-full border border-blue-100 bg-white px-2.5 py-1.5 text-xs text-slate-700 sm:px-3">{online ? <span className="size-2 rounded-full bg-emerald-500" /> : <CloudOff className="size-3.5 text-amber-600" />}<span className="hidden sm:inline">{online ? queueSize ? `${queueSize} opération(s) à synchroniser` : "Service en ligne" : `${queueSize} opération(s) conservée(s) localement`}</span><span className="sr-only">{online ? queueSize ? `${queueSize} opération(s) à synchroniser` : "Service en ligne" : `${queueSize} opération(s) conservée(s) localement`}</span></div>
         </header>
-        {!online && <div role="status" className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-950 md:px-7"><strong>Mode hors connexion.</strong> Les données déjà consultées restent disponibles sur cet appareil. Les encaissements confirmés sont conservés dans la file locale et seront synchronisés au retour du réseau.</div>}
+        {!online && <div role="status" className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-950 md:px-7"><strong>Mode hors connexion.</strong> {onlineOnlyMessage ?? "Les données déjà consultées restent disponibles sur cet appareil. Les formulaires métier compatibles sont conservés dans la file locale et seront synchronisés au retour du réseau."}</div>}
         <main className="min-h-[calc(100vh-78px)] p-4 md:p-7">{children}</main>
       </SidebarInset>
     </SidebarProvider>
