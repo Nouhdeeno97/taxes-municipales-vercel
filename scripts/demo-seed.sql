@@ -3,7 +3,7 @@
 -- ============================================================================
 -- Usage :
 --   1. Ouvrir ce fichier dans Supabase SQL Editor.
---   2. Remplacer uniquement le jeton __DEMO_ADMIN_PASSWORD_HASH__ par le hash
+--   2. Remplacer uniquement le jeton scrypt$X8lFx_SAiaSnxAdLezJ9CQ$khvsg_un1Xj6WBs-FP3qBtoEXVJDc5U40B_nje5wyfgBvtxbAM9EotbzADzO_ImEjX8XLMl_ojdWNkckzJN3Ng par le hash
 --      scrypt privé communiqué séparément. Ne jamais versionner ce remplacement.
 --   3. Exécuter l'intégralité du script une ou plusieurs fois.
 --
@@ -18,10 +18,10 @@ BEGIN;
 
 DO $$
 DECLARE
-  v_password_hash text := '__DEMO_ADMIN_PASSWORD_HASH__';
+  v_password_hash text := 'scrypt$X8lFx_SAiaSnxAdLezJ9CQ$khvsg_un1Xj6WBs-FP3qBtoEXVJDc5U40B_nje5wyfgBvtxbAM9EotbzADzO_ImEjX8XLMl_ojdWNkckzJN3Ng';
 BEGIN
   IF v_password_hash !~ '^scrypt\$[A-Za-z0-9_-]+\$[A-Za-z0-9_-]+$' THEN
-    RAISE EXCEPTION 'Remplacez __DEMO_ADMIN_PASSWORD_HASH__ par le hash scrypt privé de démonstration avant exécution.';
+    RAISE EXCEPTION 'Remplacez scrypt$X8lFx_SAiaSnxAdLezJ9CQ$khvsg_un1Xj6WBs-FP3qBtoEXVJDc5U40B_nje5wyfgBvtxbAM9EotbzADzO_ImEjX8XLMl_ojdWNkckzJN3Ng par le hash scrypt privé de démonstration avant exécution.';
   END IF;
 END $$;
 
@@ -74,7 +74,7 @@ INSERT INTO role_permissions (id, "roleId", "permissionId") VALUES
 ON CONFLICT DO NOTHING;
 
 INSERT INTO users ("openId", "municipalityId", "name", "loginMethod", "localUsername", "passwordHash", role, "isActive", "mustChangePassword", "lastSignedIn")
-VALUES ('local:demo-admin', '00000000-0000-4000-8000-000000000001', 'Administrateur Démo-Ville [DEMO]', 'local-password', 'admin.demo', '__DEMO_ADMIN_PASSWORD_HASH__', 'admin', true, true, NOW())
+VALUES ('local:demo-admin', '00000000-0000-4000-8000-000000000001', 'Administrateur Démo-Ville [DEMO]', 'local-password', 'admin.demo', 'scrypt$X8lFx_SAiaSnxAdLezJ9CQ$khvsg_un1Xj6WBs-FP3qBtoEXVJDc5U40B_nje5wyfgBvtxbAM9EotbzADzO_ImEjX8XLMl_ojdWNkckzJN3Ng', 'admin', true, true, NOW())
 ON CONFLICT DO NOTHING;
 
 INSERT INTO user_roles (id, "userId", "roleId", "assignedBy")
