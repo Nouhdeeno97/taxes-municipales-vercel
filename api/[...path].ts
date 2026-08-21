@@ -1,8 +1,40 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { forwardMunicipalApi } from "../server/vercelAdapter";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+
+type NodeHandler = (request: IncomingMessage, response: ServerResponse) => void;
+
+let municipalAppPromise: Promise<NodeHandler> | undefined;
 
 function requestPathname(request: IncomingMessage) {
   return new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`).pathname;
+}
+
+async function loadMunicipalApp(): Promise<NodeHandler> {
+  // Lors du build Vercel, le backend est regroupé dans serverless/ au format
+  // CommonJS. Express et plusieurs de ses dépendances utilisent require(), ce
+  // qui évite l’échec « Dynamic require of path is not supported » d’un bundle
+  // ESM sur le runtime Node.js serverless.
+  if (process.env.VERCEL) {
+    // La même passerelle est embarquée dans api/[...path] et dans
+    // api/trpc/[procedure]. Un chemin relatif serait résolu depuis chacune de
+    // ces fonctions et échouerait depuis le sous-répertoire `api/trpc`.
+    const moduleUrl = pathToFileURL(join(process.cwd(), "serverless", "municipal-app.cjs")).href;
+    const bundledModule = (await import(moduleUrl)) as {
+      default?: { createMunicipalApp?: () => NodeHandler };
+      createMunicipalApp: () => NodeHandler;
+    };
+    const createMunicipalApp = bundledModule.createMunicipalApp ?? bundledModule.default?.createMunicipalApp;
+    if (typeof createMunicipalApp !== "function") {
+      throw new Error("Le bundle municipal Vercel n’exporte pas createMunicipalApp.");
+    }
+    return createMunicipalApp();
+  }
+
+  // Repli réservé aux tests et au développement local : Vercel n’exécute jamais
+  // cette branche, car VERCEL=1 est injectée lors du build et de l’exécution.
+  const { createMunicipalApp } = await import("../server/_core/app.ts");
+  return createMunicipalApp();
 }
 
 function sendHealth(response: ServerResponse) {
@@ -29,4 +61,24 @@ export default function handler(request: IncomingMessage, response: ServerRespon
   }
 
   forwardMunicipalApi(request, response);
+}
+
+/**
+ * Transmet une requête API à Express après que Vercel a choisi la fonction
+ * correspondant à son chemin. Cette exportation est aussi utilisée par
+ * `api/trpc/[procedure].ts` pour les POST `/api/trpc/<procedure>`.
+ */
+export function forwardMunicipalApi(request: IncomingMessage, response: ServerResponse) {
+  municipalAppPromise ??= loadMunicipalApp();
+  municipalAppPromise.then(
+    app => app(request, response),
+    error => {
+      console.error("[Vercel] Chargement du backend municipal impossible", error);
+      if (!response.headersSent) {
+        response
+          .writeHead(500, { "Content-Type": "application/json; charset=utf-8" })
+          .end(JSON.stringify({ error: "Service API municipal indisponible" }));
+      }
+    }
+  );
 }
