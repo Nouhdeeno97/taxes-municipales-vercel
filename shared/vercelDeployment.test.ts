@@ -5,19 +5,12 @@ import { describe, expect, it } from "vitest";
 const projectRoot = path.resolve(import.meta.dirname, "..");
 
 describe("préparation Vercel", () => {
-  it("déclare une sortie publique, un bundle backend et un repli SPA qui préserve strictement les API", () => {
+  it("déclare une sortie publique et un repli SPA qui préserve strictement les API", () => {
     const config = JSON.parse(fs.readFileSync(path.join(projectRoot, "vercel.json"), "utf8"));
 
     expect(config.buildCommand).toBe("pnpm run build:vercel");
     expect(config.outputDirectory).toBe("public");
-    expect(config.functions).toEqual({
-      "api/[...path].ts": {
-        includeFiles: "serverless/municipal-app.cjs",
-      },
-      "api/trpc/[procedure].ts": {
-        includeFiles: "serverless/municipal-app.cjs",
-      },
-    });
+    expect(config.functions).toBeUndefined();
     expect(config.rewrites).toEqual([
       {
         source: "/:path((?!api(?:/|$)).*)",
@@ -26,7 +19,7 @@ describe("préparation Vercel", () => {
     ]);
   });
 
-  it("fournit une fonction Vercel dynamique avec une santé isolée et un backend regroupé", () => {
+  it("fournit des fonctions Vercel statiquement reliées au backend versionné", () => {
     const entrypoint = fs.readFileSync(path.join(projectRoot, "server.ts"), "utf8");
     const vercelFunction = fs.readFileSync(path.join(projectRoot, "api", "[...path].ts"), "utf8");
     const trpcProcedureFunction = fs.readFileSync(path.join(projectRoot, "api", "trpc", "[procedure].ts"), "utf8");
@@ -34,22 +27,17 @@ describe("préparation Vercel", () => {
 
     expect(entrypoint).toContain("export default app");
     expect(entrypoint).not.toMatch(/^\s*app\.listen\s*\(/m);
-    expect(vercelFunction).toContain('join(process.cwd(), "serverless", "municipal-app.cjs")');
-    expect(vercelFunction).toContain("pathToFileURL");
-    expect(vercelFunction).toContain("await import(moduleUrl)");
+    expect(vercelFunction).toContain('import { forwardMunicipalApi } from "../server/vercelAdapter";');
     expect(vercelFunction).toContain('requestPathname(request) === "/api/health"');
     expect(vercelFunction).toContain("sendHealth(response)");
-    expect(vercelFunction).toContain("export function forwardMunicipalApi");
     expect(vercelFunction).not.toContain('import { createMunicipalApp } from "../server/_core/app"');
     expect(vercelFunction).not.toMatch(/^\s*app\.listen\s*\(/m);
-    expect(trpcProcedureFunction).toContain('join(process.cwd(), "serverless", "municipal-app.cjs")');
-    expect(trpcProcedureFunction).toContain("await import(moduleUrl)");
-    expect(trpcProcedureFunction).toContain("municipalAppPromise.then");
+    expect(trpcProcedureFunction).toContain('import { forwardMunicipalApi } from "../../server/vercelAdapter";');
+    expect(trpcProcedureFunction).toContain("forwardMunicipalApi(request, response)");
 
-    expect(packageJson.scripts["build:vercel:api"]).toContain("--bundle");
-    expect(packageJson.scripts["build:vercel:api"]).toContain("--format=cjs");
-    expect(packageJson.scripts["build:vercel:api"]).toContain("serverless/municipal-app.cjs");
-    expect(packageJson.scripts["verify:vercel-bundle"]).toContain("scripts/verify-vercel-bundle.mjs");
+    expect(packageJson.scripts["build:vercel:api"]).toBeUndefined();
+    expect(packageJson.scripts["build:vercel"]).toBe("VERCEL=1 vite build");
+    expect(packageJson.scripts["verify:vercel-bundle"]).toBe("VERCEL=1 vite build");
   });
 
   it("déclare une cible PostgreSQL Supabase sans dépendance Manus obligatoire", () => {
