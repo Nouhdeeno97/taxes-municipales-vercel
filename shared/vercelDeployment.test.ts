@@ -42,8 +42,9 @@ describe("préparation Vercel", () => {
     expect(vercelFunction).toContain("export function forwardMunicipalApi");
     expect(vercelFunction).not.toContain('import { createMunicipalApp } from "../server/_core/app"');
     expect(vercelFunction).not.toMatch(/^\s*app\.listen\s*\(/m);
-    expect(trpcProcedureFunction).toContain('import { forwardMunicipalApi } from "../[...path]"');
-    expect(trpcProcedureFunction).toContain("forwardMunicipalApi(request, response)");
+    expect(trpcProcedureFunction).toContain('join(process.cwd(), "serverless", "municipal-app.cjs")');
+    expect(trpcProcedureFunction).toContain("await import(moduleUrl)");
+    expect(trpcProcedureFunction).toContain("municipalAppPromise.then");
 
     expect(packageJson.scripts["build:vercel:api"]).toContain("--bundle");
     expect(packageJson.scripts["build:vercel:api"]).toContain("--format=cjs");
