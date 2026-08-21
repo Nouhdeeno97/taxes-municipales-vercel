@@ -11,4 +11,15 @@ describe("getOfflineCapabilityMessage", () => {
     expect(getOfflineCapabilityMessage("/redevables")).toBeUndefined();
     expect(getOfflineCapabilityMessage("/activites")).toBeUndefined();
   });
+
+  it.each([
+    "/utilisateurs",
+    "/roles-permissions",
+    "/administration",
+    "/parametres",
+    "/audit",
+    "/recus",
+  ])("explique explicitement la limite en ligne de %s", (path) => {
+    expect(getOfflineCapabilityMessage(path)).toMatch(/connexion|serveur|sécurisée/i);
+  });
 });

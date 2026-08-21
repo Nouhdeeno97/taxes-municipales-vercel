@@ -33,4 +33,18 @@ describe("contrat des créations différées", () => {
   it("refuse une commande inconnue avant toute synchronisation", () => {
     expect(() => deferredCreateInput.parse({ ...envelope, command: "UNKNOWN", payload: {} })).toThrow();
   });
+
+  it.each([
+    ["un identifiant d’appareil trop court", { deviceId: "abc" }],
+    ["un identifiant d’opération invalide", { operationId: "operation-invalide" }],
+    ["un identifiant d’entité invalide", { entityId: "entite-invalide" }],
+    ["une empreinte de charge utile trop courte", { payloadHash: "court" }],
+  ])("rejette %s avant de rejouer une création différée", (_label, override) => {
+    expect(() => deferredCreateInput.parse({
+      ...envelope,
+      command: "ACTIVITY",
+      payload: { taxpayerId: "92000000-0000-4000-8000-000000000093", activityTypeId: "92000000-0000-4000-8000-000000000094", label: "Service mobile de formation", startDate: "2026-08-20" },
+      ...override,
+    })).toThrow();
+  });
 });

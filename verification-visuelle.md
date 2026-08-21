@@ -398,3 +398,16 @@ La mairie a confirmé que l’autorisation d’une future purge sera attribuée 
 > Le journal d’audit restera exclu de toute purge. Lorsque la migration vers le serveur municipal sera réalisée, seul l’Administrateur technique pourra autoriser cette opération dans le périmètre validé.
 
 La vérification visuelle montre explicitement cette règle dans le panneau « Purge et restauration futures » et dans la quatrième étape de préparation. La suite de validation demeure à **70 tests réussis sur 26 fichiers**, avec TypeScript et build de production valides.
+
+## Clôture des contrôles hors connexion automatisables — 21 août 2026
+
+La couverture automatisée de synchronisation a été renforcée sans simuler abusivement une coupure matérielle. Les commandes différées de toutes les familles compatibles sont contrôlées par contrat, tandis que les scénarios de reprise identique, de conflit de charge utile et de résolution restent couverts de bout en bout.
+
+| Contrôle automatisé | Résultat |
+|---|---|
+| Enveloppe différée | Les identifiants d’appareil, d’opération et d’entité, ainsi que l’empreinte de charge utile, sont refusés avant toute reprise lorsqu’ils sont invalides. |
+| Familles de formulaires | Activités, territoires, référentiels fiscaux, règles, affectations, obligations, brouillons de versement et brouillons de clôture sont inclus dans le contrat de commandes différées. |
+| Reprise et conflit | Une reprise identique est reconnue comme idempotente ; une charge utile divergente crée un conflit audité et sa résolution conserve la décision de file appropriée. |
+| Fonctions en ligne | Les écrans de gouvernance, paramétrage, audit et impression exposent explicitement leur limite de connexion afin de ne pas promettre une action locale non sécurisée. |
+
+La suite compte désormais **80 tests réussis sur 26 fichiers**, TypeScript sans erreur et build de production valide. Les seules recettes reportées sont la connexion avec un second compte Manus OAuth et la coupure réseau réelle sur l’appareil cible, indisponibles dans cette phase.

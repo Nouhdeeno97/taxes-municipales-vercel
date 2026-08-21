@@ -170,3 +170,4 @@
 - [ ] Migrer vers une base et un serveur directement administrés par la mairie avant d’activer un export SQL, un import et une purge exécutés exclusivement hors de l’infrastructure gérée, avec préservation de l’audit et protections anti-erreur.
 - [x] Préparer la documentation et les contrôles de configuration nécessaires pour transférer ultérieurement la maintenance SQL vers une infrastructure administrée par la mairie, sans modifier le fonctionnement de l’hébergement actuel.
 - [x] Consigner le report de l’essai OAuth avec un second compte Manus et de la coupure réseau réelle, faute de second compte disponible et d’appareil cible de recette pour cette phase.
+- [x] Renforcer les tests automatisés des commandes différées hors connexion et de leurs conflits pour toutes les familles de formulaires compatibles, en distinguant explicitement les recettes matérielles reportées.
