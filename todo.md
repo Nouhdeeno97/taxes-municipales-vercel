@@ -176,3 +176,4 @@
 - [x] Créer, si l’autorisation GitHub le permet, un second dépôt nommé « taxes-municipales-vercel » et y publier une copie vérifiée de la version actuelle, sans modifier le dépôt principal.
 - [x] Réserver les modifications futures au dépôt GitHub taxes-municipales-vercel et ne plus modifier le dépôt principal taxes-municipales-FINAL.
 - [x] Adapter exclusivement taxes-municipales-vercel à l’hébergement Vercel : architecture serverless, configuration de build, variables d’environnement, documentation de déploiement et contrôles automatisés.
+- [x] Documenter sans secret la provenance de la base MySQL actuelle et la liste des variables nécessaires à la configuration Vercel.
