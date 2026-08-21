@@ -5,23 +5,28 @@ import { describe, expect, it } from "vitest";
 const projectRoot = path.resolve(import.meta.dirname, "..");
 
 describe("préparation Vercel", () => {
-  it("déclare une sortie publique, un build Vite dédié et un repli SPA qui préserve les API", () => {
+  it("déclare une sortie publique, un build Vite dédié et un repli SPA qui préserve strictement les API", () => {
     const config = JSON.parse(fs.readFileSync(path.join(projectRoot, "vercel.json"), "utf8"));
 
     expect(config.buildCommand).toBe("pnpm run build:vercel");
     expect(config.outputDirectory).toBe("public");
     expect(config.rewrites).toEqual([
       {
-        source: "/:path((?!api/).*)",
+        source: "/:path((?!api(?:/|$)).*)",
         destination: "/index.html",
       },
     ]);
   });
 
-  it("fournit une entrée Express sans écoute de port pour le runtime serverless", () => {
+  it("fournit une fonction Vercel dynamique pour toutes les routes API sans écoute de port", () => {
     const entrypoint = fs.readFileSync(path.join(projectRoot, "server.ts"), "utf8");
+    const vercelFunction = fs.readFileSync(path.join(projectRoot, "api", "[...path].ts"), "utf8");
+
     expect(entrypoint).toContain("export default app");
     expect(entrypoint).not.toMatch(/^\s*app\.listen\s*\(/m);
+    expect(vercelFunction).toContain('import { createMunicipalApp } from "../server/_core/app"');
+    expect(vercelFunction).toContain("export default app");
+    expect(vercelFunction).not.toMatch(/^\s*app\.listen\s*\(/m);
   });
 
   it("déclare une cible PostgreSQL Supabase sans dépendance Manus obligatoire", () => {
