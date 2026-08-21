@@ -364,3 +364,16 @@ Les registres de la plateforme ont été adaptés pour éviter le chargement exh
 L’espace **Base de données** est visible pour le droit `database.maintenance`, réservé aux responsables techniques. Il ouvre la sauvegarde complète gérée par la plateforme et documente la restauration à partir d’un instantané. Les commandes SQL brutes, l’import direct et la purge restent volontairement indisponibles : ils peuvent compromettre les contraintes, migrations, sessions et l’intégrité comptable. Toute future purge exige la définition du périmètre métier et un circuit de double validation ; le journal d’audit est explicitement exclu.
 
 Les contrôles interactifs ont confirmé les écrans Activités, Fiscalité, Reçus, Versements et Base de données. La suite finale compte **68 tests réussis sur 25 fichiers**, TypeScript sans erreur et build de production valide.
+
+## Identité active des reçus et indépendance de la base — 21 août 2026
+
+Les impressions originales et les réimpressions ne contiennent plus d’identité municipale codée en dur. Elles lisent le paramétrage actif au moment de l’impression : le nom de la mairie, le nom de la plateforme et le logo éventuellement configuré. Le reçu métier reste immuable ; seule sa présentation institutionnelle mise à jour est utilisée lors de l’impression.
+
+| Contrôle | Résultat |
+|---|---|
+| Impression depuis Encaissement | Le générateur de reçu utilise le paramétrage municipal actif chargé par l’application. |
+| Réimpression depuis Reçus | Le registre appelle le même générateur ; il ne réintroduit plus « Mairie de Libreville » ni un nom de système figé. |
+| Logo | L’URL du logo municipal est intégrée dans l’en-tête imprimé lorsqu’un logo est configuré. |
+| Régression | Deux tests unitaires vérifient la conservation des valeurs configurées et les valeurs de repli sûres. |
+
+La demande d’une base totalement indépendante de l’infrastructure actuellement gérée ne peut pas être satisfaite par une simple page dans cette version : l’application et sa base sont aujourd’hui hébergées sur une plateforme gérée. Une sauvegarde SQL, une restauration SQL et une purge effectuées exclusivement sur l’infrastructure de la mairie exigent une migration préalable vers une base et un serveur directement administrés par la mairie. La fonctionnalité reste donc volontairement non activée tant que cette cible d’hébergement n’est pas choisie et sécurisée. La suite compte désormais **70 tests réussis sur 26 fichiers** et le build de production est valide.

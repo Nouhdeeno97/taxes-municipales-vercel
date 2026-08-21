@@ -165,3 +165,5 @@
 - [x] Ajouter un menu « Base de données » réservé au droit Administrateur technique, avec accès à la sauvegarde complète gérée, procédure de restauration contrôlée et exclusion explicite du journal d’audit de toute purge éventuelle.
 - [x] Couvrir les nouvelles paginations, recherches, fenêtres de reçu, regroupements de versement et protections de maintenance par tests automatisés, contrôles visuels et aide contextualisée.
 - [ ] Convenir avec la mairie du périmètre métier et du circuit de double validation requis avant d’activer toute purge irréversible ; l’import SQL direct reste exclu au profit de la restauration complète gérée par la plateforme.
+- [x] Faire utiliser aux aperçus, impressions et réimpressions de reçus l’identité municipale actuellement configurée : nom de la mairie, nom de plateforme et logo courant.
+- [ ] Migrer vers une base et un serveur directement administrés par la mairie avant d’activer un export SQL, un import et une purge exécutés exclusivement hors de l’infrastructure gérée, avec préservation de l’audit et protections anti-erreur.
