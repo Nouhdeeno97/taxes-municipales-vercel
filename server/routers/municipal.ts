@@ -394,7 +394,7 @@ export const municipalRouter = router({
       let initialObligationCount = 0;
       await db.transaction(async tx => {
         await tx.insert(activities).values(payload);
-        await tx.insert(activityOwnerships).values({ activityId: id, taxpayerId: input.taxpayerId, startDate: input.startedAt, transferredBy: ctx.user.id });
+        await tx.insert(activityOwnerships).values({ id: randomUUID(), activityId: id, taxpayerId: input.taxpayerId, startDate: input.startedAt, transferredBy: ctx.user.id });
         await tx.insert(auditLogs).values({ municipalityId, actorId: ctx.user.id, action: "CREATE", module: "activities", entityType: "activity", entityId: id, afterValue: payload });
         initialObligationCount = 0;
       });
@@ -407,7 +407,7 @@ export const municipalRouter = router({
         const activity = mustGet((await tx.select().from(activities).where(and(eq(activities.id, input.activityId), eq(activities.municipalityId, municipalityId))).limit(1))[0], "Activité introuvable.");
         const target = mustGet((await tx.select().from(taxpayers).where(and(eq(taxpayers.id, input.targetTaxpayerId), eq(taxpayers.municipalityId, municipalityId), eq(taxpayers.status, "ACTIVE"))).limit(1))[0], "Nouveau propriétaire introuvable.");
         await tx.update(activityOwnerships).set({ endDate: input.transferredAt }).where(and(eq(activityOwnerships.activityId, activity.id), sql`${activityOwnerships.endDate} IS NULL`));
-        await tx.insert(activityOwnerships).values({ activityId: activity.id, taxpayerId: target.id, startDate: input.transferredAt, transferredBy: ctx.user.id });
+        await tx.insert(activityOwnerships).values({ id: randomUUID(), activityId: activity.id, taxpayerId: target.id, startDate: input.transferredAt, transferredBy: ctx.user.id });
         await tx.update(activities).set({ currentTaxpayerId: target.id }).where(eq(activities.id, activity.id));
         await tx.insert(auditLogs).values({ municipalityId, actorId: ctx.user.id, action: "TRANSFER", module: "activities", entityType: "activity", entityId: activity.id, beforeValue: { taxpayerId: activity.currentTaxpayerId }, afterValue: { taxpayerId: target.id } });
       });
@@ -923,7 +923,7 @@ export const municipalRouter = router({
           else if (payload.zoneId) await requireTerritoryAccess(ctx.user, "ZONE", payload.zoneId);
           mustGet((await tx.select({ id: taxpayers.id }).from(taxpayers).where(and(eq(taxpayers.id, payload.taxpayerId), eq(taxpayers.municipalityId, municipalityId), eq(taxpayers.status, "ACTIVE"))).limit(1))[0], "Redevable actif introuvable après synchronisation.");
           await tx.insert(activities).values({ id: input.entityId, municipalityId, reference: reference("ACT"), currentTaxpayerId: payload.taxpayerId, activityTypeId: payload.activityTypeId, label: payload.label, locationType: payload.locationType, zoneId: payload.zoneId, marketId: payload.marketId, marketLocationId: payload.marketLocationId, address: payload.address, startedAt: payload.startedAt, createdBy: ctx.user.id });
-          await tx.insert(activityOwnerships).values({ activityId: input.entityId, taxpayerId: payload.taxpayerId, startDate: payload.startedAt, transferredBy: ctx.user.id });
+          await tx.insert(activityOwnerships).values({ id: randomUUID(), activityId: input.entityId, taxpayerId: payload.taxpayerId, startDate: payload.startedAt, transferredBy: ctx.user.id });
         }
         await tx.update(syncOperations).set({ status: "SYNCED", result: { entityId: input.entityId, command: input.command }, processedAt: new Date() }).where(and(eq(syncOperations.deviceId, input.deviceId), eq(syncOperations.operationId, input.operationId)));
         await tx.insert(auditLogs).values({ municipalityId, actorId: ctx.user.id, action: "SYNC", module: "synchronization", entityType: input.command.toLowerCase(), entityId: input.entityId, afterValue: { offlineOperationId: input.operationId, command: input.command }, deviceId: input.deviceId });

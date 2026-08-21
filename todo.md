@@ -192,3 +192,4 @@
 - [x] Diagnostiquer et corriger l’échec d’invocation Vercel afin que `/api/health` réponde sans dépendre d’une initialisation PostgreSQL ou métier inutile.
 - [x] Convertir le bundle backend Vercel en CommonJS afin de rendre Express et tRPC compatibles avec le runtime serverless, puis confirmer les deux routes en production.
 - [x] Tracer et corriger la mutation POST tRPC de connexion afin que la fonction Vercel renvoie du JSON tRPC au lieu d’une page HTML 404.
+- [x] Diagnostiquer l’échec PostgreSQL de création d’activité TAXI sur Vercel, aligner les références ou le mapping fautif, puis confirmer une création réelle.
