@@ -347,3 +347,20 @@ L’étape 3 de Fiscalité a été simplifiée pour rester utilisable lorsque le
 | Aide et tutoriel | Le tutoriel fiscal explique la séparation tarif/affectation, les lots par type d’activité et de localisation, puis la génération idempotente. |
 
 La capture en résolution bureau **1 280 × 900** confirme l’affichage des lots par type de localisation et de l’intitulé municipal sans code. Les tests de contrat vérifient que les types de localisation sont acceptés et que l’ancien critère par libellé est refusé. La suite compte **65 tests réussis sur 24 fichiers**, TypeScript sans erreur et build de production valide.
+
+## Volumétrie, supervision des versements et maintenance — 21 août 2026
+
+Les registres de la plateforme ont été adaptés pour éviter le chargement exhaustif des données. Les recherches et les paginations s’exécutent côté serveur : l’interface ne reçoit que la page demandée, avec le total correspondant aux filtres appliqués.
+
+| Parcours | Amélioration validée | Présentation à l’agent |
+|---|---|---|
+| Redevables, Activités, Encaissements, Reçus, Utilisateurs et Audit | Pagination serveur et recherche ; le contrat limite les tailles de page entre 5 et 100 lignes. | Navigation réutilisable avec total, page courante et boutons précédent/suivant. |
+| Activités | Recherche par référence, nom, identifiant national ou identifiant fiscal du redevable. | Toutes les activités rattachées à un même redevable peuvent être retrouvées sans liste complète. |
+| Fiscalité | Lots par type d’activité et type de localisation limités à deux colonnes et quatre lignes visibles ; le contenu reste accessible par défilement interne. Les catalogues Taxes et Règles affichent cinq lignes défilables. | La page reste compacte quel que soit le nombre de types, localisations, taxes ou règles. |
+| Obligations | Recherche et pagination de dix lignes. | Le montant initial et le reste dû restent visibles sur chaque obligation. |
+| Reçus | L’action « Consulter » ouvre une fenêtre dédiée contenant la pièce, son aperçu et son historique d’impression. | Le registre reste stable même avec un nombre élevé de reçus. |
+| Versements | Les encaissements éligibles sont regroupés par agent avec nombre et montant total non versé ; le registre de supervision est recherché, filtrable par date et paginé. | L’agent sélectionne son groupe, puis le superviseur contrôle référence, agent, attendu, déposé, écart, état, date et supervision. |
+
+L’espace **Base de données** est visible pour le droit `database.maintenance`, réservé aux responsables techniques. Il ouvre la sauvegarde complète gérée par la plateforme et documente la restauration à partir d’un instantané. Les commandes SQL brutes, l’import direct et la purge restent volontairement indisponibles : ils peuvent compromettre les contraintes, migrations, sessions et l’intégrité comptable. Toute future purge exige la définition du périmètre métier et un circuit de double validation ; le journal d’audit est explicitement exclu.
+
+Les contrôles interactifs ont confirmé les écrans Activités, Fiscalité, Reçus, Versements et Base de données. La suite finale compte **68 tests réussis sur 25 fichiers**, TypeScript sans erreur et build de production valide.

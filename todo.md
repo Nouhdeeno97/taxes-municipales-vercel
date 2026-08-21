@@ -156,3 +156,12 @@
 - [x] Remplacer les lots par libellé d’activité de l’étape 3 Fiscalité par des lots dynamiques par type de localisation, tout en conservant les types d’activité et la recherche d’activités précises.
 - [x] Retirer le code « LBV » de l’intitulé de la mairie affiché dans l’en-tête de l’application.
 - [x] Mettre à jour l’aide et le tutoriel fiscal afin d’expliquer la sélection par types d’activité et de localisation, puis ajouter les tests et la validation visuelle associés.
+- [x] Paginer toutes les listes de registres de la plateforme côté serveur afin d’éviter tout chargement exhaustif à grande échelle, avec navigation et indication de résultat.
+- [x] Ajouter dans Activités une recherche serveur par identifiant fiscal ou identifiant national du redevable afin de retrouver toutes ses activités rattachées.
+- [x] Limiter les lots de types d’activité et de localisation de l’étape 3 Fiscalité à deux colonnes et quatre lignes visibles, avec défilement interne pour les autres lots.
+- [x] Rendre les listes « Types de taxes municipales » et « Règles fiscales » du catalogue Fiscalité défilables dans des boîtes de cinq lignes, puis paginer les obligations générées par dix lignes.
+- [x] Ouvrir la consultation de reçu, son aperçu et son historique d’impression dans une fenêtre dédiée plutôt que sous le registre.
+- [x] Regrouper les encaissements éligibles au versement par agent, avec nombre et montant non versés, recherche par agent et date, puis afficher le registre de versements avec les colonnes de contrôle et supervision demandées.
+- [x] Ajouter un menu « Base de données » réservé au droit Administrateur technique, avec accès à la sauvegarde complète gérée, procédure de restauration contrôlée et exclusion explicite du journal d’audit de toute purge éventuelle.
+- [x] Couvrir les nouvelles paginations, recherches, fenêtres de reçu, regroupements de versement et protections de maintenance par tests automatisés, contrôles visuels et aide contextualisée.
+- [ ] Convenir avec la mairie du périmètre métier et du circuit de double validation requis avant d’activer toute purge irréversible ; l’import SQL direct reste exclu au profit de la restauration complète gérée par la plateforme.

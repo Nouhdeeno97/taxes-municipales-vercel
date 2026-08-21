@@ -26,6 +26,7 @@ import {
   CircleHelp,
   ClipboardCheck,
   CloudOff,
+  DatabaseBackup,
   FileText,
   Landmark,
   LogOut,
@@ -60,6 +61,7 @@ const menuItems = [
   { icon: ScrollText, label: "Journal d’audit", path: "/audit", adminOnly: true },
   { icon: Settings2, label: "Administration", path: "/administration", adminOnly: true },
   { icon: Palette, label: "Paramètres", path: "/parametres", adminOnly: true },
+  { icon: DatabaseBackup, label: "Base de données", path: "/base-de-donnees", technicalOnly: true },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -86,6 +88,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const { online, queueSize } = useOfflineQueue();
   const { data: municipality } = trpc.municipal.activeMunicipality.useQuery();
+  const grants = trpc.municipal.help.permissions.useQuery();
   const [location, setLocation] = useLocation();
   const isMobile = useIsMobile();
   const activeLabel = menuItems.find(item => item.path === location)?.label ?? "Gestion municipale";
@@ -107,7 +110,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         <SidebarContent className="px-2 py-4">
           <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500 group-data-[collapsible=icon]:hidden">Navigation</p>
           <SidebarMenu>
-            {menuItems.filter(item => !item.adminOnly || user?.role === "admin").map(item => (
+            {menuItems.filter(item => (!item.adminOnly || user?.role === "admin") && (!item.technicalOnly || user?.role === "admin" || grants.data?.some(grant => (grant.module === "database" || grant.module === "*") && (grant.action === "maintenance" || grant.action === "*")))).map(item => (
               <SidebarMenuItem key={item.path}>
                 <SidebarMenuButton isActive={location === item.path} tooltip={item.label} onClick={() => setLocation(item.path)} style={location === item.path ? { backgroundColor: municipality?.primaryColor ?? "#0f5cdb", color: "white" } : undefined} className="h-10 font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-800 data-[active=true]:text-white">
                   <item.icon className="size-4" /><span>{item.label}</span>

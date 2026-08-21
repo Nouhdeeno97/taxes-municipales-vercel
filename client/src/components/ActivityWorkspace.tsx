@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { PaginationControls } from "@/components/PaginationControls";
 import { useOfflineCreate } from "@/hooks/useOfflineCreate";
 import { trpc } from "@/lib/trpc";
 import { makeActivityTypeCode } from "@shared/activityTypeCode";
@@ -22,7 +23,6 @@ export function ActivityWorkspace() {
   const { user } = useAuth();
   const utils = trpc.useUtils();
   const offline = useOfflineCreate();
-  const list = trpc.municipal.activities.list.useQuery();
   const catalog = trpc.municipal.catalog.options.useQuery();
   const territory = trpc.municipal.territory.tree.useQuery();
 
@@ -37,6 +37,9 @@ export function ActivityWorkspace() {
   const [newTypeCode, setNewTypeCode] = useState("");
   const [taxpayerSearch, setTaxpayerSearch] = useState("");
   const [selectedTaxpayer, setSelectedTaxpayer] = useState<TaxpayerCandidate | null>(null);
+  const [activitySearch, setActivitySearch] = useState("");
+  const [page, setPage] = useState(0);
+  const list = trpc.municipal.activities.list.useQuery({ query: activitySearch || undefined, page, pageSize: 25 });
 
   const canManageCatalog = user?.role === "admin";
   const taxpayerMatches = trpc.municipal.taxpayers.searchForActivity.useQuery(
@@ -136,6 +139,6 @@ export function ActivityWorkspace() {
       <div className="flex items-end"><Button type="submit" disabled={create.isPending}>{create.isPending ? "Enregistrement…" : "Enregistrer l’activité"}</Button></div>
     </form></CardContent></Card>}
 
-    <Card className="border-blue-100"><CardHeader><CardTitle>Registre des activités</CardTitle><CardDescription>Chaque activité conserve son redevable, son type, son territoire et son statut.</CardDescription></CardHeader><CardContent>{pendingCount > 0 && <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{pendingCount} activité(s) locale(s) en attente de synchronisation.</div>}{list.error ? <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">{list.error.message}</p> : list.isLoading ? <p className="text-sm text-slate-500">Chargement…</p> : !list.data?.length ? <p className="rounded-xl border border-dashed border-blue-200 bg-blue-50 p-8 text-center text-sm text-blue-900">Aucune activité enregistrée. Recherchez un redevable puis déclarez son activité.</p> : <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Référence</TableHead><TableHead>Libellé</TableHead><TableHead>Redevable</TableHead><TableHead>Marché</TableHead><TableHead>Statut</TableHead></TableRow></TableHeader><TableBody>{list.data.map(({ activity, taxpayer, market }) => <TableRow key={activity.id}><TableCell className="font-mono text-xs text-blue-800">{activity.reference}</TableCell><TableCell className="font-medium">{activity.label}</TableCell><TableCell>{taxpayer?.legalName || `${taxpayer?.lastName ?? ""} ${taxpayer?.firstName ?? ""}`}</TableCell><TableCell>{market?.name ?? activity.address ?? "—"}</TableCell><TableCell><Badge variant="outline">{activity.status}</Badge></TableCell></TableRow>)}</TableBody></Table></div>}</CardContent></Card>
+    <Card className="border-blue-100"><CardHeader><CardTitle>Registre des activités</CardTitle><CardDescription>Retrouvez toutes les activités d’un redevable par son identifiant fiscal, son identifiant national, sa référence ou son nom.</CardDescription></CardHeader><CardContent>{pendingCount > 0 && <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{pendingCount} activité(s) locale(s) en attente de synchronisation.</div>}<div className="relative mb-4 max-w-xl"><Search className="absolute left-3 top-3 size-4 text-slate-400" /><Input value={activitySearch} onChange={event => { setActivitySearch(event.target.value); setPage(0); }} className="pl-9" placeholder="ID fiscal, ID national, référence, nom ou activité" /></div>{list.error ? <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">{list.error.message}</p> : list.isLoading ? <p className="text-sm text-slate-500">Chargement…</p> : !list.data?.rows.length ? <p className="rounded-xl border border-dashed border-blue-200 bg-blue-50 p-8 text-center text-sm text-blue-900">Aucune activité ne correspond à cette recherche.</p> : <><div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Référence</TableHead><TableHead>Libellé</TableHead><TableHead>Redevable</TableHead><TableHead>Marché</TableHead><TableHead>Statut</TableHead></TableRow></TableHeader><TableBody>{list.data.rows.map(({ activity, taxpayer, market }) => <TableRow key={activity.id}><TableCell className="font-mono text-xs text-blue-800">{activity.reference}</TableCell><TableCell className="font-medium">{activity.label}</TableCell><TableCell>{taxpayer?.legalName || `${taxpayer?.lastName ?? ""} ${taxpayer?.firstName ?? ""}`}</TableCell><TableCell>{market?.name ?? activity.address ?? "—"}</TableCell><TableCell><Badge variant="outline">{activity.status}</Badge></TableCell></TableRow>)}</TableBody></Table></div><PaginationControls page={page} pageSize={25} total={list.data.total} onPageChange={setPage} label="activité" /></>}</CardContent></Card>
   </>;
 }

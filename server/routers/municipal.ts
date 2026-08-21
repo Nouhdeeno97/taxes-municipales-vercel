@@ -56,6 +56,7 @@ const money = z.number().finite().positive().max(1_000_000_000);
 const moneyValue = (value: number) => value.toFixed(2);
 const reference = (prefix: string) => `${prefix}-${new Date().getFullYear()}-${randomUUID().slice(0, 8).toUpperCase()}`;
 const activityLocationTypeInput = z.enum(["ZONE", "MARKET", "MARKET_LOCATION", "MOBILE", "CUSTOM"]);
+export const paginatedListInput = z.object({ page: z.number().int().min(0).default(0), pageSize: z.number().int().min(5).max(100).default(25) });
 export const activitySelectionInput = z.object({
   all: z.boolean().default(false),
   activityTypeIds: z.array(z.string().uuid()).max(100).default([]),
@@ -80,6 +81,13 @@ async function audit(
     afterValue: event.afterValue,
     deviceId: event.deviceId,
   });
+}
+
+async function ensureDatabaseMaintenancePermission(db: Awaited<ReturnType<typeof requireDb>>) {
+  const existing = await db.select({ id: permissions.id }).from(permissions).where(eq(permissions.code, "database.maintenance")).limit(1);
+  if (!existing[0]) {
+    await db.insert(permissions).values({ id: randomUUID(), code: "database.maintenance", module: "database", action: "maintenance", label: "Maintenance de la base de données" });
+  }
 }
 
 function mustGet<T>(value: T | undefined, message: string): T {
@@ -135,6 +143,14 @@ export const municipalRouter = router({
   }),
   help: router({
     permissions: protectedProcedure.query(async ({ ctx }) => getActivePermissionGrants(ctx.user)),
+  }),
+  databaseMaintenance: router({
+    access: protectedProcedure.query(async ({ ctx }) => {
+      const db = await requireDb();
+      await ensureDatabaseMaintenancePermission(db);
+      const municipalityId = await requireAccess(ctx.user, "database", "maintenance");
+      return { municipalityId, backupUrl: "https://manus.im/backup", permissionCode: "database.maintenance" };
+    }),
   }),
   bootstrap: protectedProcedure
     .input(z.object({ code: z.string().trim().min(2).max(32), name: z.string().trim().min(3).max(180) }))
@@ -226,15 +242,22 @@ export const municipalRouter = router({
 
   taxpayers: router({
     list: protectedProcedure
-      .input(z.object({ search: z.string().trim().max(120).optional() }).optional())
+      .input(z.object({ search: z.string().trim().max(120).optional(), page: z.number().int().min(0).default(0), pageSize: z.number().int().min(5).max(100).default(25) }).optional())
       .query(async ({ ctx, input }) => {
         const municipalityId = await requireAccess(ctx.user, "taxpayers", "read");
         const db = await requireDb();
         const search = input?.search;
-        return db.select().from(taxpayers).where(and(
+        const page = input?.page ?? 0;
+        const pageSize = input?.pageSize ?? 25;
+        const filters = and(
           eq(taxpayers.municipalityId, municipalityId),
-          search ? or(like(taxpayers.reference, `%${search}%`), like(taxpayers.firstName, `%${search}%`), like(taxpayers.lastName, `%${search}%`), like(taxpayers.legalName, `%${search}%`)) : undefined,
-        )).orderBy(desc(taxpayers.createdAt)).limit(100);
+          search ? or(like(taxpayers.reference, `%${search}%`), like(taxpayers.nationalId, `%${search}%`), like(taxpayers.taxId, `%${search}%`), like(taxpayers.firstName, `%${search}%`), like(taxpayers.lastName, `%${search}%`), like(taxpayers.legalName, `%${search}%`)) : undefined,
+        );
+        const [rows, totals] = await Promise.all([
+          db.select().from(taxpayers).where(filters).orderBy(desc(taxpayers.createdAt)).limit(pageSize).offset(page * pageSize),
+          db.select({ count: sql<number>`count(*)` }).from(taxpayers).where(filters),
+        ]);
+        return { rows, page, pageSize, total: Number(totals[0]?.count ?? 0) };
     }),
     searchForPayment: protectedProcedure.input(z.object({ query: z.string().trim().min(2).max(120) })).query(async ({ ctx, input }) => {
       const municipalityId = await requireAccess(ctx.user, "payments", "create");
@@ -326,13 +349,21 @@ export const municipalRouter = router({
   }),
 
   activities: router({
-    list: protectedProcedure.query(async ({ ctx }) => {
+    list: protectedProcedure.input(z.object({ query: z.string().trim().max(160).optional(), page: z.number().int().min(0).default(0), pageSize: z.number().int().min(5).max(100).default(25) }).optional()).query(async ({ ctx, input }) => {
       const municipalityId = await requireAccess(ctx.user, "activities", "read");
       const db = await requireDb();
-      return db.select({ activity: activities, taxpayer: taxpayers, market: markets }).from(activities)
-        .leftJoin(taxpayers, eq(activities.currentTaxpayerId, taxpayers.id))
-        .leftJoin(markets, eq(activities.marketId, markets.id))
-        .where(eq(activities.municipalityId, municipalityId)).orderBy(desc(activities.createdAt)).limit(100);
+      const page = input?.page ?? 0;
+      const pageSize = input?.pageSize ?? 25;
+      const text = input?.query?.trim();
+      const filters = and(eq(activities.municipalityId, municipalityId), text ? or(like(activities.reference, `%${text}%`), like(activities.label, `%${text}%`), like(taxpayers.reference, `%${text}%`), like(taxpayers.nationalId, `%${text}%`), like(taxpayers.taxId, `%${text}%`), like(taxpayers.firstName, `%${text}%`), like(taxpayers.lastName, `%${text}%`), like(taxpayers.legalName, `%${text}%`)) : undefined);
+      const [rows, totals] = await Promise.all([
+        db.select({ activity: activities, taxpayer: taxpayers, market: markets }).from(activities)
+          .leftJoin(taxpayers, eq(activities.currentTaxpayerId, taxpayers.id))
+          .leftJoin(markets, eq(activities.marketId, markets.id))
+          .where(filters).orderBy(desc(activities.createdAt)).limit(pageSize).offset(page * pageSize),
+        db.select({ count: sql<number>`count(*)` }).from(activities).leftJoin(taxpayers, eq(activities.currentTaxpayerId, taxpayers.id)).where(filters),
+      ]);
+      return { rows, page, pageSize, total: Number(totals[0]?.count ?? 0) };
     }),
     search: protectedProcedure.input(z.object({ query: z.string().trim().max(160).optional(), activityTypeId: z.string().uuid().optional(), locationType: z.enum(["ZONE", "MARKET", "MARKET_LOCATION", "MOBILE", "CUSTOM"]).optional(), page: z.number().int().min(0).default(0) })).query(async ({ ctx, input }) => {
       const municipalityId = await requireAccess(ctx.user, "activities", "read"); const db = await requireDb(); const text = input.query?.trim();
@@ -479,6 +510,18 @@ export const municipalRouter = router({
         .leftJoin(taxpayers, eq(taxObligations.taxpayerId, taxpayers.id)).leftJoin(activities, eq(taxObligations.activityId, activities.id))
         .where(eq(taxObligations.municipalityId, municipalityId)).orderBy(desc(taxObligations.dueDate)).limit(200);
     }),
+    obligationsPage: protectedProcedure.input(z.object({ page: z.number().int().min(0).default(0), pageSize: z.number().int().min(5).max(100).default(10), search: z.string().trim().max(160).optional(), status: z.string().trim().max(48).optional() })).query(async ({ ctx, input }) => {
+      const municipalityId = await requireAccess(ctx.user, "obligations", "read"); const db = await requireDb();
+      const text = input.search?.trim();
+      const filters = and(eq(taxObligations.municipalityId, municipalityId), input.status ? eq(taxObligations.status, input.status as typeof taxObligations.$inferSelect.status) : undefined, text ? or(like(taxObligations.reference, `%${text}%`), like(taxpayers.reference, `%${text}%`), like(taxpayers.nationalId, `%${text}%`), like(taxpayers.taxId, `%${text}%`), like(taxpayers.firstName, `%${text}%`), like(taxpayers.lastName, `%${text}%`), like(taxpayers.legalName, `%${text}%`), like(activities.label, `%${text}%`)) : undefined);
+      const [rows, totals] = await Promise.all([
+        db.select({ obligation: taxObligations, taxpayer: taxpayers, activity: activities }).from(taxObligations)
+          .leftJoin(taxpayers, eq(taxObligations.taxpayerId, taxpayers.id)).leftJoin(activities, eq(taxObligations.activityId, activities.id))
+          .where(filters).orderBy(desc(taxObligations.dueDate)).limit(input.pageSize).offset(input.page * input.pageSize),
+        db.select({ count: sql<number>`count(*)` }).from(taxObligations).leftJoin(taxpayers, eq(taxObligations.taxpayerId, taxpayers.id)).leftJoin(activities, eq(taxObligations.activityId, activities.id)).where(filters),
+      ]);
+      return { rows, page: input.page, pageSize: input.pageSize, total: Number(totals[0]?.count ?? 0) };
+    }),
     createObligation: protectedProcedure.input(z.object({ taxpayerId: z.string().uuid(), activityId: z.string().uuid(), taxTypeId: z.string().uuid(), taxRuleId: z.string().uuid(), periodStart: z.coerce.date(), periodEnd: z.coerce.date(), dueDate: z.coerce.date(), expectedAmount: money })).mutation(async ({ ctx, input }) => {
       const municipalityId = await requireAccess(ctx.user, "obligations", "create"); const db = await requireDb(); const id = randomUUID();
       const payload = { id, municipalityId, reference: reference("OBL"), ...input, expectedAmount: moneyValue(input.expectedAmount), remainingAmount: moneyValue(input.expectedAmount) };
@@ -600,6 +643,13 @@ export const municipalRouter = router({
   payments: router({
     methods: protectedProcedure.query(async ({ ctx }) => { const municipalityId = await requireAccess(ctx.user, "payments", "read"); const db = await requireDb(); return db.select().from(paymentMethods).where(and(eq(paymentMethods.municipalityId, municipalityId), eq(paymentMethods.isActive, true))); }),
     list: protectedProcedure.query(async ({ ctx }) => { const municipalityId = await requireAccess(ctx.user, "payments", "read"); const db = await requireDb(); return db.select({ payment: paymentTransactions, taxpayer: taxpayers, receipt: receipts }).from(paymentTransactions).leftJoin(taxpayers, eq(paymentTransactions.taxpayerId, taxpayers.id)).leftJoin(receipts, eq(receipts.paymentTransactionId, paymentTransactions.id)).where(eq(paymentTransactions.municipalityId, municipalityId)).orderBy(desc(paymentTransactions.collectedAt)).limit(100); }),
+    listPage: protectedProcedure.input(paginatedListInput.extend({ search: z.string().trim().max(160).optional() })).query(async ({ ctx, input }) => {
+      const municipalityId = await requireAccess(ctx.user, "payments", "read"); const db = await requireDb(); const text = input.search ? `%${input.search.toLowerCase()}%` : undefined;
+      const conditions = and(eq(paymentTransactions.municipalityId, municipalityId), text ? or(sql`lower(${paymentTransactions.reference}) like ${text}`, sql`lower(coalesce(${taxpayers.firstName}, '')) like ${text}`, sql`lower(coalesce(${taxpayers.lastName}, '')) like ${text}`, sql`lower(coalesce(${taxpayers.legalName}, '')) like ${text}`, sql`lower(coalesce(${taxpayers.nationalId}, '')) like ${text}`, sql`lower(coalesce(${taxpayers.taxId}, '')) like ${text}`) : undefined);
+      const rows = await db.select({ payment: paymentTransactions, taxpayer: taxpayers, receipt: receipts }).from(paymentTransactions).leftJoin(taxpayers, eq(paymentTransactions.taxpayerId, taxpayers.id)).leftJoin(receipts, eq(receipts.paymentTransactionId, paymentTransactions.id)).where(conditions).orderBy(desc(paymentTransactions.collectedAt)).limit(input.pageSize).offset(input.page * input.pageSize);
+      const total = await db.select({ count: sql<number>`count(*)` }).from(paymentTransactions).leftJoin(taxpayers, eq(paymentTransactions.taxpayerId, taxpayers.id)).where(conditions);
+      return { rows, total: Number(total[0]?.count ?? 0), page: input.page, pageSize: input.pageSize };
+    }),
     collect: protectedProcedure.input(z.object({ taxpayerId: z.string().uuid(), items: z.array(z.object({ obligationId: z.string().uuid(), amount: money })).min(1), allocations: z.array(z.object({ paymentMethodId: z.string().uuid(), amount: money, externalReference: z.string().trim().max(160).optional() })).min(1), collectedAt: z.coerce.date(), deviceId: z.string().trim().max(128).optional(), offlineOperationId: z.string().trim().max(96).optional() })).mutation(async ({ ctx, input }) => {
       const municipalityId = await requireAccess(ctx.user, "payments", "create"); const db = await requireDb();
       const itemTotal = input.items.reduce((sum, item) => sum + item.amount, 0); const allocationTotal = input.allocations.reduce((sum, allocation) => sum + allocation.amount, 0);
@@ -637,6 +687,13 @@ export const municipalRouter = router({
         .leftJoin(taxpayers, eq(paymentTransactions.taxpayerId, taxpayers.id))
         .where(eq(receipts.municipalityId, municipalityId)).orderBy(desc(receipts.issuedAt)).limit(200);
     }),
+    listPage: protectedProcedure.input(paginatedListInput.extend({ search: z.string().trim().max(160).optional() })).query(async ({ ctx, input }) => {
+      const municipalityId = await requireAccess(ctx.user, "receipts", "read"); const db = await requireDb(); const text = input.search ? `%${input.search.toLowerCase()}%` : undefined;
+      const conditions = and(eq(receipts.municipalityId, municipalityId), text ? or(sql`lower(${receipts.reference}) like ${text}`, sql`lower(coalesce(${taxpayers.firstName}, '')) like ${text}`, sql`lower(coalesce(${taxpayers.lastName}, '')) like ${text}`, sql`lower(coalesce(${taxpayers.legalName}, '')) like ${text}`, sql`lower(coalesce(${taxpayers.nationalId}, '')) like ${text}`, sql`lower(coalesce(${taxpayers.taxId}, '')) like ${text}`) : undefined);
+      const rows = await db.select({ receipt: receipts, payment: paymentTransactions, taxpayer: taxpayers }).from(receipts).innerJoin(paymentTransactions, eq(receipts.paymentTransactionId, paymentTransactions.id)).leftJoin(taxpayers, eq(paymentTransactions.taxpayerId, taxpayers.id)).where(conditions).orderBy(desc(receipts.issuedAt)).limit(input.pageSize).offset(input.page * input.pageSize);
+      const total = await db.select({ count: sql<number>`count(*)` }).from(receipts).innerJoin(paymentTransactions, eq(receipts.paymentTransactionId, paymentTransactions.id)).leftJoin(taxpayers, eq(paymentTransactions.taxpayerId, taxpayers.id)).where(conditions);
+      return { rows, total: Number(total[0]?.count ?? 0), page: input.page, pageSize: input.pageSize };
+    }),
     printHistory: protectedProcedure.input(z.object({ receiptId: z.string().uuid() })).query(async ({ ctx, input }) => {
       const municipalityId = await requireAccess(ctx.user, "receipts", "read");
       const db = await requireDb();
@@ -647,6 +704,22 @@ export const municipalRouter = router({
 
   deposits: router({
     list: protectedProcedure.query(async ({ ctx }) => { const municipalityId = await requireAccess(ctx.user, "deposits", "read"); const db = await requireDb(); return db.select().from(deposits).where(eq(deposits.municipalityId, municipalityId)).orderBy(desc(deposits.createdAt)).limit(100); }),
+    listPage: protectedProcedure.input(paginatedListInput.extend({ search: z.string().trim().max(160).optional(), submittedOn: z.coerce.date().optional() })).query(async ({ ctx, input }) => {
+      const municipalityId = await requireAccess(ctx.user, "deposits", "read"); const db = await requireDb();
+      const text = input.search ? `%${input.search.toLowerCase()}%` : undefined;
+      const startOfDay = input.submittedOn ? new Date(input.submittedOn.getFullYear(), input.submittedOn.getMonth(), input.submittedOn.getDate()) : undefined;
+      const endOfDay = startOfDay ? new Date(startOfDay.getFullYear(), startOfDay.getMonth(), startOfDay.getDate() + 1) : undefined;
+      const conditions = and(eq(deposits.municipalityId, municipalityId), text ? or(sql`lower(${deposits.reference}) like ${text}`, sql`lower(coalesce(${users.name}, '')) like ${text}`) : undefined, startOfDay ? gte(deposits.submittedAt, startOfDay) : undefined, endOfDay ? lte(deposits.submittedAt, endOfDay) : undefined);
+      const rows = await db.select({ deposit: deposits, agentName: users.name, agentUsername: users.localUsername }).from(deposits).leftJoin(users, eq(deposits.agentId, users.id)).where(conditions).orderBy(desc(deposits.submittedAt), desc(deposits.createdAt)).limit(input.pageSize).offset(input.page * input.pageSize);
+      const totalRow = await db.select({ count: sql<number>`count(*)` }).from(deposits).leftJoin(users, eq(deposits.agentId, users.id)).where(conditions);
+      return { rows, total: Number(totalRow[0]?.count ?? 0), page: input.page, pageSize: input.pageSize };
+    }),
+    eligibleByAgent: protectedProcedure.input(paginatedListInput.extend({ search: z.string().trim().max(160).optional() }).optional()).query(async ({ ctx, input }) => {
+      const municipalityId = await requireAccess(ctx.user, "deposits", "read"); const db = await requireDb(); const page = input?.page ?? 0; const pageSize = input?.pageSize ?? 10; const text = input?.search ? `%${input.search.toLowerCase()}%` : undefined;
+      const conditions = and(eq(paymentTransactions.municipalityId, municipalityId), eq(paymentTransactions.status, "VALIDATED"), isNull(depositItems.id), text ? or(sql`lower(coalesce(${users.name}, '')) like ${text}`, sql`lower(coalesce(${users.localUsername}, '')) like ${text}`) : undefined);
+      const groups = await db.select({ agentId: paymentTransactions.collectedBy, agentName: users.name, agentUsername: users.localUsername, paymentCount: sql<number>`count(${paymentTransactions.id})`, totalAmount: sql<string>`coalesce(sum(${paymentTransactions.netAmount}), 0)` }).from(paymentTransactions).leftJoin(depositItems, eq(depositItems.paymentTransactionId, paymentTransactions.id)).leftJoin(users, eq(paymentTransactions.collectedBy, users.id)).where(conditions).groupBy(paymentTransactions.collectedBy, users.name, users.localUsername).orderBy(desc(sql`sum(${paymentTransactions.netAmount})`));
+      return { rows: groups.slice(page * pageSize, (page + 1) * pageSize).map(group => ({ ...group, paymentCount: Number(group.paymentCount), totalAmount: Number(group.totalAmount) })), total: groups.length, page, pageSize };
+    }),
     eligiblePayments: protectedProcedure.query(async ({ ctx }) => {
       const municipalityId = await requireAccess(ctx.user, "deposits", "create"); const db = await requireDb();
       return db.select({ payment: paymentTransactions, taxpayer: taxpayers }).from(paymentTransactions)
@@ -693,6 +766,13 @@ export const municipalRouter = router({
 
   administration: router({
     users: protectedProcedure.query(async ({ ctx }) => { requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb(); return db.select({ id: users.id, name: users.name, email: users.email, localUsername: users.localUsername, role: users.role, isActive: users.isActive, archivedAt: users.archivedAt, lastSignedIn: users.lastSignedIn, loginMethod: users.loginMethod, accessMode: sql<string>`case when ${users.localUsername} is not null then 'LOCAL' when ${users.openId} like 'tester:%' then 'LIEN TEMPORAIRE' else 'MANUS OAuth' end`, roles: sql<string>`group_concat(distinct ${roles.label} separator ', ')` }).from(users).leftJoin(userRoles, and(eq(userRoles.userId, users.id), isNull(userRoles.expiresAt))).leftJoin(roles, eq(userRoles.roleId, roles.id)).where(eq(users.municipalityId, municipalityId)).groupBy(users.id).orderBy(users.name); }),
+    usersPage: protectedProcedure.input(paginatedListInput.extend({ search: z.string().trim().max(160).optional(), status: z.enum(["ALL", "ACTIVE", "INACTIVE", "ARCHIVED"]).default("ALL") })).query(async ({ ctx, input }) => {
+      requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb(); const text = input.search ? `%${input.search.toLowerCase()}%` : undefined;
+      const conditions = and(eq(users.municipalityId, municipalityId), input.status === "ACTIVE" ? and(eq(users.isActive, true), isNull(users.archivedAt)) : input.status === "INACTIVE" ? and(eq(users.isActive, false), isNull(users.archivedAt)) : input.status === "ARCHIVED" ? sql`${users.archivedAt} is not null` : undefined, text ? or(sql`lower(coalesce(${users.name}, '')) like ${text}`, sql`lower(coalesce(${users.email}, '')) like ${text}`, sql`lower(coalesce(${users.localUsername}, '')) like ${text}`) : undefined);
+      const rows = await db.select({ id: users.id, name: users.name, email: users.email, localUsername: users.localUsername, role: users.role, isActive: users.isActive, archivedAt: users.archivedAt, lastSignedIn: users.lastSignedIn, loginMethod: users.loginMethod, accessMode: sql<string>`case when ${users.localUsername} is not null then 'LOCAL' when ${users.openId} like 'tester:%' then 'LIEN TEMPORAIRE' else 'MANUS OAuth' end`, roles: sql<string>`group_concat(distinct ${roles.label} separator ', ')` }).from(users).leftJoin(userRoles, and(eq(userRoles.userId, users.id), isNull(userRoles.expiresAt))).leftJoin(roles, eq(userRoles.roleId, roles.id)).where(conditions).groupBy(users.id).orderBy(users.name).limit(input.pageSize).offset(input.page * input.pageSize);
+      const total = await db.select({ count: sql<number>`count(*)` }).from(users).where(conditions);
+      return { rows, total: Number(total[0]?.count ?? 0), page: input.page, pageSize: input.pageSize };
+    }),
     roles: protectedProcedure.query(async ({ ctx }) => { requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb(); return db.select().from(roles).where(or(eq(roles.municipalityId, municipalityId), isNull(roles.municipalityId))).orderBy(roles.label); }),
     permissions: protectedProcedure.query(async ({ ctx }) => { requireAdmin(ctx.user); await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb(); return db.select().from(permissions).orderBy(permissions.module, permissions.action); }),
     rolePermissionMatrix: protectedProcedure.query(async ({ ctx }) => { requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb(); return db.select({ roleId: rolePermissions.roleId, permissionId: rolePermissions.permissionId }).from(rolePermissions).innerJoin(roles, eq(rolePermissions.roleId, roles.id)).where(or(eq(roles.municipalityId, municipalityId), isNull(roles.municipalityId))); }),
@@ -709,6 +789,12 @@ export const municipalRouter = router({
     resetLocalPassword: protectedProcedure.input(z.object({ userId: z.number().int().positive(), password: z.string().min(10).max(512) })).mutation(async ({ ctx, input }) => { requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb(); const target = mustGet((await db.select().from(users).where(and(eq(users.id, input.userId), eq(users.municipalityId, municipalityId))).limit(1))[0], "Utilisateur hors mairie."); if (target.loginMethod !== "local-password") throw new TRPCError({ code: "BAD_REQUEST", message: "Seul un compte local possède un mot de passe municipal réinitialisable." }); try { await resetLocalPassword(target.id, input.password); } catch (error) { throw new TRPCError({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "Réinitialisation impossible." }); } await audit(db, { municipalityId, actorId: ctx.user.id, action: "RESET_PASSWORD", module: "administration", entityType: "user", entityId: String(target.id), afterValue: { accessMode: "LOCAL", localUsername: target.localUsername } }); return { success: true }; }),
     archiveLocalUser: protectedProcedure.input(z.object({ userId: z.number().int().positive() })).mutation(async ({ ctx, input }) => { requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "administration", "manage"); if (ctx.user.id === input.userId) throw new TRPCError({ code: "BAD_REQUEST", message: "Vous ne pouvez pas archiver votre propre compte." }); const db = await requireDb(); const target = mustGet((await db.select().from(users).where(and(eq(users.id, input.userId), eq(users.municipalityId, municipalityId))).limit(1))[0], "Utilisateur hors mairie."); if (target.archivedAt) throw new TRPCError({ code: "CONFLICT", message: "Ce compte est déjà archivé." }); try { await archiveLocalUser(target.id); } catch (error) { throw new TRPCError({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "Archivage impossible." }); } await audit(db, { municipalityId, actorId: ctx.user.id, action: "ARCHIVE", module: "administration", entityType: "user", entityId: String(target.id), beforeValue: { isActive: target.isActive }, afterValue: { archived: true, accessMode: "LOCAL", localUsername: target.localUsername } }); return { success: true }; }),
     auditLog: protectedProcedure.input(z.object({ module: z.string().trim().max(64).optional(), actorId: z.number().int().positive().optional(), from: z.coerce.date().optional(), to: z.coerce.date().optional(), limit: z.number().int().min(1).max(500).default(150) }).optional()).query(async ({ ctx, input }) => { requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb(); return db.select({ id: auditLogs.id, action: auditLogs.action, module: auditLogs.module, entityType: auditLogs.entityType, entityId: auditLogs.entityId, beforeValue: auditLogs.beforeValue, afterValue: auditLogs.afterValue, createdAt: auditLogs.createdAt, actorId: auditLogs.actorId, actorName: users.name, actorUsername: users.localUsername }).from(auditLogs).leftJoin(users, eq(auditLogs.actorId, users.id)).where(and(eq(auditLogs.municipalityId, municipalityId), input?.module ? eq(auditLogs.module, input.module) : undefined, input?.actorId ? eq(auditLogs.actorId, input.actorId) : undefined, input?.from ? gte(auditLogs.createdAt, input.from) : undefined, input?.to ? lte(auditLogs.createdAt, input.to) : undefined)).orderBy(desc(auditLogs.createdAt)).limit(input?.limit ?? 150); }),
+    auditLogPage: protectedProcedure.input(paginatedListInput.extend({ search: z.string().trim().max(160).optional(), module: z.string().trim().max(64).optional(), actorId: z.number().int().positive().optional(), from: z.coerce.date().optional(), to: z.coerce.date().optional() })).query(async ({ ctx, input }) => {
+      requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb(); const text = input.search ? `%${input.search.toLowerCase()}%` : undefined; const conditions = and(eq(auditLogs.municipalityId, municipalityId), input.module ? eq(auditLogs.module, input.module) : undefined, input.actorId ? eq(auditLogs.actorId, input.actorId) : undefined, input.from ? gte(auditLogs.createdAt, input.from) : undefined, input.to ? lte(auditLogs.createdAt, input.to) : undefined, text ? or(sql`lower(${auditLogs.module}) like ${text}`, sql`lower(${auditLogs.action}) like ${text}`, sql`lower(${auditLogs.entityType}) like ${text}`, sql`lower(coalesce(${auditLogs.entityId}, '')) like ${text}`, sql`lower(coalesce(${users.name}, '')) like ${text}`, sql`lower(coalesce(${users.localUsername}, '')) like ${text}`) : undefined);
+      const rows = await db.select({ id: auditLogs.id, action: auditLogs.action, module: auditLogs.module, entityType: auditLogs.entityType, entityId: auditLogs.entityId, beforeValue: auditLogs.beforeValue, afterValue: auditLogs.afterValue, createdAt: auditLogs.createdAt, actorId: auditLogs.actorId, actorName: users.name, actorUsername: users.localUsername }).from(auditLogs).leftJoin(users, eq(auditLogs.actorId, users.id)).where(conditions).orderBy(desc(auditLogs.createdAt)).limit(input.pageSize).offset(input.page * input.pageSize);
+      const total = await db.select({ count: sql<number>`count(*)` }).from(auditLogs).where(conditions);
+      return { rows, total: Number(total[0]?.count ?? 0), page: input.page, pageSize: input.pageSize };
+    }),
     cancelInvitation: protectedProcedure.input(z.object({ invitationId: z.string().uuid() })).mutation(async ({ ctx, input }) => { requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb(); const invitation = mustGet((await db.select().from(userInvitations).where(and(eq(userInvitations.id, input.invitationId), eq(userInvitations.municipalityId, municipalityId))).limit(1))[0], "Invitation introuvable."); if (invitation.status === "ACTIVATED") throw new TRPCError({ code: "CONFLICT", message: "Une invitation activée ne peut pas être annulée." }); await db.update(userInvitations).set({ status: "CANCELLED" }).where(eq(userInvitations.id, input.invitationId)); await audit(db, { municipalityId, actorId: ctx.user.id, action: "CANCEL", module: "administration", entityType: "user_invitation", entityId: input.invitationId, afterValue: input }); return { success: true }; }),
     assignTerritory: protectedProcedure.input(z.object({ userId: z.number().int().positive(), territoryType: z.enum(["SECTOR", "ZONE", "MARKET", "MARKET_LOCATION"]), territoryId: z.string().uuid(), startDate: z.coerce.date(), endDate: z.coerce.date().optional() })).mutation(async ({ ctx, input }) => { requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb(); mustGet((await db.select({ id: users.id }).from(users).where(and(eq(users.id, input.userId), eq(users.municipalityId, municipalityId))).limit(1))[0], "Utilisateur hors mairie."); const id = randomUUID(); await db.insert(userTerritoryAssignments).values({ id, ...input, assignedBy: ctx.user.id }); await audit(db, { municipalityId, actorId: ctx.user.id, action: "ASSIGN", module: "administration", entityType: "territory_assignment", entityId: id, afterValue: input }); return { id }; }),
   }),
