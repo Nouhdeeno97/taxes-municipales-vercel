@@ -186,3 +186,4 @@
 - [x] Corriger la migration PostgreSQL Supabase afin qu’elle crée tous les enums, tables et contraintes dans l’ordre nécessaire sur une base vide.
 - [x] Préparer un script Supabase idempotent de données strictement fictives couvrant le parcours municipal de démonstration et un premier administrateur local sans mot de passe dans Git.
 - [ ] Valider, versionner et documenter l’exécution du script Supabase de démonstration, avec identifiants administrateur communiqués exclusivement hors Git.
+- [x] Corriger le script de démonstration selon les colonnes réellement créées par la migration Supabase, contrôler toutes ses insertions et republier le fichier SQL exécutable.

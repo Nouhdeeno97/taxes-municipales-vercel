@@ -522,7 +522,8 @@ export const cashCounts = pgTable("cash_counts", {
   countedAmount: decimal("countedAmount", { precision: 14, scale: 2 }).notNull(),
   denominations: jsonb("denominations").notNull(),
   countedBy: integer("countedBy").notNull().references(() => users.id),
-  countedAt: createdAt(),
+  // La migration Supabase initiale expose createdAt ; conserver ce nom évite une dérive de schéma.
+  createdAt: createdAt(),
 });
 
 export const dailyClosings = pgTable("daily_closings", {

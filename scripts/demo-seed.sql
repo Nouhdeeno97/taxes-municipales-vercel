@@ -212,8 +212,8 @@ INSERT INTO deposit_items (id, "depositId", "paymentTransactionId", "acceptedAmo
 VALUES ('00000000-0000-4000-8000-000000000181', '00000000-0000-4000-8000-000000000180', '00000000-0000-4000-8000-000000000170', 5000.00, 'ACCEPTED')
 ON CONFLICT DO NOTHING;
 
-INSERT INTO cash_counts (id, "depositId", "countedAmount", denominations, "countedBy", "countedAt")
-SELECT '00000000-0000-4000-8000-000000000182', '00000000-0000-4000-8000-000000000180', 5000.00, '{"DEMO":5000}'::jsonb, u.id, '2026-08-10T16:05:00+00'
+INSERT INTO cash_counts (id, "depositId", "countedAmount", denominations, "countedBy")
+SELECT '00000000-0000-4000-8000-000000000182', '00000000-0000-4000-8000-000000000180', 5000.00, '{"DEMO":5000}'::jsonb, u.id
 FROM users u WHERE u."localUsername" = 'admin.demo'
 ON CONFLICT DO NOTHING;
 
