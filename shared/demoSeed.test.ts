@@ -34,9 +34,11 @@ describe("script Supabase de démonstration", () => {
     expect(seedSql).toContain("COMMIT;");
   });
 
-  it("ne publie aucun mot de passe ou hash de démonstration", () => {
-    expect(seedSql).toContain("__DEMO_ADMIN_PASSWORD_HASH__");
-    expect(seedSql).not.toMatch(/scrypt\$[A-Za-z0-9_-]+\$[A-Za-z0-9_-]+/);
+  it("réutilise le même hash scrypt demandé sans publier de mot de passe en clair", () => {
+    const hashes = seedSql.match(/scrypt\$[A-Za-z0-9_-]+\$[A-Za-z0-9_-]+/g) ?? [];
+    expect(hashes.length).toBeGreaterThanOrEqual(2);
+    expect(new Set(hashes)).toHaveLength(1);
+    expect(seedSql).not.toContain("__DEMO_ADMIN_PASSWORD_HASH__");
     expect(seedSql).toContain("'admin.demo'");
   });
 
