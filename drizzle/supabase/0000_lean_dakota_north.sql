@@ -1,3 +1,25 @@
+CREATE TYPE "public"."activity_location_type" AS ENUM('ZONE', 'MARKET', 'MARKET_LOCATION', 'MOBILE', 'CUSTOM');--> statement-breakpoint
+CREATE TYPE "public"."activity_status" AS ENUM('ACTIVE', 'INACTIVE', 'SUSPENDED', 'CLOSED', 'EXPIRED');--> statement-breakpoint
+CREATE TYPE "public"."appearance_mode" AS ENUM('LIGHT', 'DARK', 'SYSTEM');--> statement-breakpoint
+CREATE TYPE "public"."calendar_unit" AS ENUM('DAY', 'WEEK', 'MONTH', 'QUARTER', 'SEMESTER', 'YEAR', 'CUSTOM');--> statement-breakpoint
+CREATE TYPE "public"."daily_closing_status" AS ENUM('OPEN', 'SUBMITTED', 'CLOSED', 'REOPENED');--> statement-breakpoint
+CREATE TYPE "public"."deposit_item_status" AS ENUM('PENDING', 'ACCEPTED', 'REJECTED');--> statement-breakpoint
+CREATE TYPE "public"."deposit_status" AS ENUM('PENDING', 'SUBMITTED', 'VALIDATED', 'PARTIALLY_VALIDATED', 'REJECTED');--> statement-breakpoint
+CREATE TYPE "public"."exemption_status" AS ENUM('PENDING', 'APPROVED', 'REJECTED', 'EXPIRED');--> statement-breakpoint
+CREATE TYPE "public"."invitation_status" AS ENUM('PENDING', 'ACTIVATED', 'CANCELLED', 'EXPIRED');--> statement-breakpoint
+CREATE TYPE "public"."market_location_status" AS ENUM('AVAILABLE', 'OCCUPIED', 'RESERVED', 'INACTIVE');--> statement-breakpoint
+CREATE TYPE "public"."obligation_status" AS ENUM('PENDING', 'PARTIALLY_PAID', 'PAID', 'OVERDUE', 'CANCELLED', 'EXEMPTED');--> statement-breakpoint
+CREATE TYPE "public"."payment_status" AS ENUM('PENDING_SYNC', 'PENDING', 'VALIDATED', 'CANCELLED', 'REFUNDED');--> statement-breakpoint
+CREATE TYPE "public"."receipt_print_type" AS ENUM('ORIGINAL', 'DUPLICATE', 'REPRINT');--> statement-breakpoint
+CREATE TYPE "public"."receipt_status" AS ENUM('PROVISIONAL', 'FINAL', 'CANCELLED');--> statement-breakpoint
+CREATE TYPE "public"."sync_operation" AS ENUM('CREATE', 'UPDATE', 'CANCEL', 'SUBMIT');--> statement-breakpoint
+CREATE TYPE "public"."sync_resolution" AS ENUM('PENDING', 'SERVER', 'LOCAL', 'MANUAL');--> statement-breakpoint
+CREATE TYPE "public"."sync_status" AS ENUM('PENDING', 'PROCESSING', 'SYNCED', 'FAILED', 'CONFLICT');--> statement-breakpoint
+CREATE TYPE "public"."taxpayer_contact_kind" AS ENUM('PHONE', 'EMAIL', 'WHATSAPP', 'OTHER');--> statement-breakpoint
+CREATE TYPE "public"."taxpayer_status" AS ENUM('ACTIVE', 'INACTIVE', 'MERGED');--> statement-breakpoint
+CREATE TYPE "public"."taxpayer_type" AS ENUM('PERSON', 'COMPANY');--> statement-breakpoint
+CREATE TYPE "public"."territory_type" AS ENUM('SECTOR', 'ZONE', 'MARKET', 'MARKET_LOCATION');--> statement-breakpoint
+CREATE TYPE "public"."user_role" AS ENUM('user', 'admin');--> statement-breakpoint
 CREATE TABLE "activities" (
 	"id" varchar(36) PRIMARY KEY NOT NULL,
 	"municipalityId" varchar(36) NOT NULL,

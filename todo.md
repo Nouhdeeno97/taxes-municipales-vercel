@@ -180,3 +180,7 @@
 - [x] Migrer taxes-municipales-vercel de MySQL/TiDB vers PostgreSQL Supabase : Drizzle, schéma, migrations, requêtes et transactions compatibles, sans perdre les fonctions métier existantes.
 - [x] Retirer toute dépendance obligatoire aux services Manus : sessions/authentification indépendante, stockage Supabase Storage pour les logos et fichiers, variables Vercel/Supabase sans secret dans Git.
 - [x] Valider l’architecture autonome Vercel + Supabase par tests, typage, compilation et documentation de migration/démonstration.
+- [ ] Appliquer en environnement secret la migration PostgreSQL Supabase de démonstration et vérifier les tables et contraintes créées.
+- [ ] Préparer et charger un jeu de données fictives clairement libellé pour démontrer les parcours municipaux sans donnée réelle.
+- [ ] Documenter et valider la connexion Vercel à la base Supabase de démonstration sans exposer aucun secret.
+- [x] Corriger la migration PostgreSQL Supabase afin qu’elle crée tous les enums, tables et contraintes dans l’ordre nécessaire sur une base vide.

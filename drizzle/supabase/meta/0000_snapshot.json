@@ -1,5 +1,5 @@
 {
-  "id": "0f6273c4-65c2-4554-aef5-9d2a908478bc",
+  "id": "7cae79bf-160b-4fce-8780-7638b0133f22",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -5360,7 +5360,229 @@
       "isRLSEnabled": false
     }
   },
-  "enums": {},
+  "enums": {
+    "public.activity_location_type": {
+      "name": "activity_location_type",
+      "schema": "public",
+      "values": [
+        "ZONE",
+        "MARKET",
+        "MARKET_LOCATION",
+        "MOBILE",
+        "CUSTOM"
+      ]
+    },
+    "public.activity_status": {
+      "name": "activity_status",
+      "schema": "public",
+      "values": [
+        "ACTIVE",
+        "INACTIVE",
+        "SUSPENDED",
+        "CLOSED",
+        "EXPIRED"
+      ]
+    },
+    "public.appearance_mode": {
+      "name": "appearance_mode",
+      "schema": "public",
+      "values": [
+        "LIGHT",
+        "DARK",
+        "SYSTEM"
+      ]
+    },
+    "public.calendar_unit": {
+      "name": "calendar_unit",
+      "schema": "public",
+      "values": [
+        "DAY",
+        "WEEK",
+        "MONTH",
+        "QUARTER",
+        "SEMESTER",
+        "YEAR",
+        "CUSTOM"
+      ]
+    },
+    "public.daily_closing_status": {
+      "name": "daily_closing_status",
+      "schema": "public",
+      "values": [
+        "OPEN",
+        "SUBMITTED",
+        "CLOSED",
+        "REOPENED"
+      ]
+    },
+    "public.deposit_item_status": {
+      "name": "deposit_item_status",
+      "schema": "public",
+      "values": [
+        "PENDING",
+        "ACCEPTED",
+        "REJECTED"
+      ]
+    },
+    "public.deposit_status": {
+      "name": "deposit_status",
+      "schema": "public",
+      "values": [
+        "PENDING",
+        "SUBMITTED",
+        "VALIDATED",
+        "PARTIALLY_VALIDATED",
+        "REJECTED"
+      ]
+    },
+    "public.exemption_status": {
+      "name": "exemption_status",
+      "schema": "public",
+      "values": [
+        "PENDING",
+        "APPROVED",
+        "REJECTED",
+        "EXPIRED"
+      ]
+    },
+    "public.invitation_status": {
+      "name": "invitation_status",
+      "schema": "public",
+      "values": [
+        "PENDING",
+        "ACTIVATED",
+        "CANCELLED",
+        "EXPIRED"
+      ]
+    },
+    "public.market_location_status": {
+      "name": "market_location_status",
+      "schema": "public",
+      "values": [
+        "AVAILABLE",
+        "OCCUPIED",
+        "RESERVED",
+        "INACTIVE"
+      ]
+    },
+    "public.obligation_status": {
+      "name": "obligation_status",
+      "schema": "public",
+      "values": [
+        "PENDING",
+        "PARTIALLY_PAID",
+        "PAID",
+        "OVERDUE",
+        "CANCELLED",
+        "EXEMPTED"
+      ]
+    },
+    "public.payment_status": {
+      "name": "payment_status",
+      "schema": "public",
+      "values": [
+        "PENDING_SYNC",
+        "PENDING",
+        "VALIDATED",
+        "CANCELLED",
+        "REFUNDED"
+      ]
+    },
+    "public.receipt_print_type": {
+      "name": "receipt_print_type",
+      "schema": "public",
+      "values": [
+        "ORIGINAL",
+        "DUPLICATE",
+        "REPRINT"
+      ]
+    },
+    "public.receipt_status": {
+      "name": "receipt_status",
+      "schema": "public",
+      "values": [
+        "PROVISIONAL",
+        "FINAL",
+        "CANCELLED"
+      ]
+    },
+    "public.sync_operation": {
+      "name": "sync_operation",
+      "schema": "public",
+      "values": [
+        "CREATE",
+        "UPDATE",
+        "CANCEL",
+        "SUBMIT"
+      ]
+    },
+    "public.sync_resolution": {
+      "name": "sync_resolution",
+      "schema": "public",
+      "values": [
+        "PENDING",
+        "SERVER",
+        "LOCAL",
+        "MANUAL"
+      ]
+    },
+    "public.sync_status": {
+      "name": "sync_status",
+      "schema": "public",
+      "values": [
+        "PENDING",
+        "PROCESSING",
+        "SYNCED",
+        "FAILED",
+        "CONFLICT"
+      ]
+    },
+    "public.taxpayer_contact_kind": {
+      "name": "taxpayer_contact_kind",
+      "schema": "public",
+      "values": [
+        "PHONE",
+        "EMAIL",
+        "WHATSAPP",
+        "OTHER"
+      ]
+    },
+    "public.taxpayer_status": {
+      "name": "taxpayer_status",
+      "schema": "public",
+      "values": [
+        "ACTIVE",
+        "INACTIVE",
+        "MERGED"
+      ]
+    },
+    "public.taxpayer_type": {
+      "name": "taxpayer_type",
+      "schema": "public",
+      "values": [
+        "PERSON",
+        "COMPANY"
+      ]
+    },
+    "public.territory_type": {
+      "name": "territory_type",
+      "schema": "public",
+      "values": [
+        "SECTOR",
+        "ZONE",
+        "MARKET",
+        "MARKET_LOCATION"
+      ]
+    },
+    "public.user_role": {
+      "name": "user_role",
+      "schema": "public",
+      "values": [
+        "user",
+        "admin"
+      ]
+    }
+  },
   "schemas": {},
   "sequences": {},
   "roles": {},

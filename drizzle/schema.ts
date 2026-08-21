@@ -18,28 +18,28 @@ const uuid = (name = "id") => varchar(name, { length: 36 }).$defaultFn(() => ran
 const createdAt = () => timestamp("createdAt", { withTimezone: true }).defaultNow().notNull();
 const updatedAt = () => timestamp("updatedAt", { withTimezone: true }).defaultNow().$onUpdateFn(() => new Date()).notNull();
 
-const appearanceModeEnum = pgEnum("appearance_mode", ["LIGHT", "DARK", "SYSTEM"]);
-const userRoleEnum = pgEnum("user_role", ["user", "admin"]);
-const invitationStatusEnum = pgEnum("invitation_status", ["PENDING", "ACTIVATED", "CANCELLED", "EXPIRED"]);
-const marketLocationStatusEnum = pgEnum("market_location_status", ["AVAILABLE", "OCCUPIED", "RESERVED", "INACTIVE"]);
-const territoryTypeEnum = pgEnum("territory_type", ["SECTOR", "ZONE", "MARKET", "MARKET_LOCATION"]);
-const taxpayerTypeEnum = pgEnum("taxpayer_type", ["PERSON", "COMPANY"]);
-const taxpayerStatusEnum = pgEnum("taxpayer_status", ["ACTIVE", "INACTIVE", "MERGED"]);
-const taxpayerContactKindEnum = pgEnum("taxpayer_contact_kind", ["PHONE", "EMAIL", "WHATSAPP", "OTHER"]);
-const activityLocationTypeEnum = pgEnum("activity_location_type", ["ZONE", "MARKET", "MARKET_LOCATION", "MOBILE", "CUSTOM"]);
-const activityStatusEnum = pgEnum("activity_status", ["ACTIVE", "INACTIVE", "SUSPENDED", "CLOSED", "EXPIRED"]);
-const calendarUnitEnum = pgEnum("calendar_unit", ["DAY", "WEEK", "MONTH", "QUARTER", "SEMESTER", "YEAR", "CUSTOM"]);
-const exemptionStatusEnum = pgEnum("exemption_status", ["PENDING", "APPROVED", "REJECTED", "EXPIRED"]);
-const obligationStatusEnum = pgEnum("obligation_status", ["PENDING", "PARTIALLY_PAID", "PAID", "OVERDUE", "CANCELLED", "EXEMPTED"]);
-const paymentStatusEnum = pgEnum("payment_status", ["PENDING_SYNC", "PENDING", "VALIDATED", "CANCELLED", "REFUNDED"]);
-const receiptStatusEnum = pgEnum("receipt_status", ["PROVISIONAL", "FINAL", "CANCELLED"]);
-const receiptPrintTypeEnum = pgEnum("receipt_print_type", ["ORIGINAL", "DUPLICATE", "REPRINT"]);
-const depositStatusEnum = pgEnum("deposit_status", ["PENDING", "SUBMITTED", "VALIDATED", "PARTIALLY_VALIDATED", "REJECTED"]);
-const depositItemStatusEnum = pgEnum("deposit_item_status", ["PENDING", "ACCEPTED", "REJECTED"]);
-const dailyClosingStatusEnum = pgEnum("daily_closing_status", ["OPEN", "SUBMITTED", "CLOSED", "REOPENED"]);
-const syncOperationEnum = pgEnum("sync_operation", ["CREATE", "UPDATE", "CANCEL", "SUBMIT"]);
-const syncStatusEnum = pgEnum("sync_status", ["PENDING", "PROCESSING", "SYNCED", "FAILED", "CONFLICT"]);
-const syncResolutionEnum = pgEnum("sync_resolution", ["PENDING", "SERVER", "LOCAL", "MANUAL"]);
+export const appearanceModeEnum = pgEnum("appearance_mode", ["LIGHT", "DARK", "SYSTEM"]);
+export const userRoleEnum = pgEnum("user_role", ["user", "admin"]);
+export const invitationStatusEnum = pgEnum("invitation_status", ["PENDING", "ACTIVATED", "CANCELLED", "EXPIRED"]);
+export const marketLocationStatusEnum = pgEnum("market_location_status", ["AVAILABLE", "OCCUPIED", "RESERVED", "INACTIVE"]);
+export const territoryTypeEnum = pgEnum("territory_type", ["SECTOR", "ZONE", "MARKET", "MARKET_LOCATION"]);
+export const taxpayerTypeEnum = pgEnum("taxpayer_type", ["PERSON", "COMPANY"]);
+export const taxpayerStatusEnum = pgEnum("taxpayer_status", ["ACTIVE", "INACTIVE", "MERGED"]);
+export const taxpayerContactKindEnum = pgEnum("taxpayer_contact_kind", ["PHONE", "EMAIL", "WHATSAPP", "OTHER"]);
+export const activityLocationTypeEnum = pgEnum("activity_location_type", ["ZONE", "MARKET", "MARKET_LOCATION", "MOBILE", "CUSTOM"]);
+export const activityStatusEnum = pgEnum("activity_status", ["ACTIVE", "INACTIVE", "SUSPENDED", "CLOSED", "EXPIRED"]);
+export const calendarUnitEnum = pgEnum("calendar_unit", ["DAY", "WEEK", "MONTH", "QUARTER", "SEMESTER", "YEAR", "CUSTOM"]);
+export const exemptionStatusEnum = pgEnum("exemption_status", ["PENDING", "APPROVED", "REJECTED", "EXPIRED"]);
+export const obligationStatusEnum = pgEnum("obligation_status", ["PENDING", "PARTIALLY_PAID", "PAID", "OVERDUE", "CANCELLED", "EXEMPTED"]);
+export const paymentStatusEnum = pgEnum("payment_status", ["PENDING_SYNC", "PENDING", "VALIDATED", "CANCELLED", "REFUNDED"]);
+export const receiptStatusEnum = pgEnum("receipt_status", ["PROVISIONAL", "FINAL", "CANCELLED"]);
+export const receiptPrintTypeEnum = pgEnum("receipt_print_type", ["ORIGINAL", "DUPLICATE", "REPRINT"]);
+export const depositStatusEnum = pgEnum("deposit_status", ["PENDING", "SUBMITTED", "VALIDATED", "PARTIALLY_VALIDATED", "REJECTED"]);
+export const depositItemStatusEnum = pgEnum("deposit_item_status", ["PENDING", "ACCEPTED", "REJECTED"]);
+export const dailyClosingStatusEnum = pgEnum("daily_closing_status", ["OPEN", "SUBMITTED", "CLOSED", "REOPENED"]);
+export const syncOperationEnum = pgEnum("sync_operation", ["CREATE", "UPDATE", "CANCEL", "SUBMIT"]);
+export const syncStatusEnum = pgEnum("sync_status", ["PENDING", "PROCESSING", "SYNCED", "FAILED", "CONFLICT"]);
+export const syncResolutionEnum = pgEnum("sync_resolution", ["PENDING", "SERVER", "LOCAL", "MANUAL"]);
 
 export const municipalities = pgTable("municipalities", {
   id: uuid().primaryKey(),
