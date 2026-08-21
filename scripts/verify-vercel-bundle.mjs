@@ -16,7 +16,7 @@ if (typeof createMunicipalApp !== "function") {
   throw new Error("Le bundle Vercel n’exporte pas createMunicipalApp.");
 }
 
-if (buildId !== "mobile-territory-v3") {
+if (buildId !== "mobile-territory-v4") {
   throw new Error(`Le bundle Vercel ne correspond pas à la révision MOBILE attendue (empreinte reçue : ${String(buildId)}).`);
 }
 

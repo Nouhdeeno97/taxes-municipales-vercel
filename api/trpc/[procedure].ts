@@ -24,6 +24,10 @@ async function loadMunicipalApp(): Promise<NodeHandler> {
  * reçoit les procédures tRPC (notation par points) et les délègue à Express.
  */
 export default function handler(request: IncomingMessage, response: ServerResponse) {
+  // Cette empreinte est exportée depuis le bundle CommonJS lui-même. Elle
+  // permet de vérifier qu’une mutation tRPC arrive bien sur la même révision
+  // métier que la route de santé, sans afficher de données sensibles.
+  response.setHeader("X-Municipal-Api-Build", municipalApiBuildId);
   municipalAppPromise ??= loadMunicipalApp();
   municipalAppPromise.then(
     app => app(request, response),

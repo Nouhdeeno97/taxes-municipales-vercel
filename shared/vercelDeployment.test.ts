@@ -32,6 +32,7 @@ describe("préparation Vercel", () => {
     const trpcProcedureFunction = fs.readFileSync(path.join(projectRoot, "api", "trpc", "[procedure].ts"), "utf8");
     const packageJson = JSON.parse(fs.readFileSync(path.join(projectRoot, "package.json"), "utf8"));
     const gitignore = fs.readFileSync(path.join(projectRoot, ".gitignore"), "utf8");
+    const bundleVerifier = fs.readFileSync(path.join(projectRoot, "scripts", "verify-vercel-bundle.mjs"), "utf8");
 
     expect(entrypoint).toContain("export default app");
     expect(entrypoint).not.toMatch(/^\s*app\.listen\s*\(/m);
@@ -49,6 +50,7 @@ describe("préparation Vercel", () => {
     expect(trpcProcedureFunction).toContain('from "../../serverless/municipal-app.cjs"');
     expect(trpcProcedureFunction).toContain("createMunicipalAppFromBundle");
     expect(trpcProcedureFunction).toContain("MUNICIPAL_API_BUILD_ID");
+    expect(trpcProcedureFunction).toContain('response.setHeader("X-Municipal-Api-Build", municipalApiBuildId)');
     expect(trpcProcedureFunction).not.toContain("await import(moduleUrl)");
     expect(trpcProcedureFunction).toContain("municipalAppPromise.then");
 
@@ -57,6 +59,7 @@ describe("préparation Vercel", () => {
     expect(packageJson.scripts["build:vercel:api"]).toContain("serverless/municipal-app.cjs");
     expect(packageJson.scripts["verify:vercel-bundle"]).toContain("scripts/verify-vercel-bundle.mjs");
     expect(gitignore).toContain("!serverless/municipal-app.cjs");
+    expect(bundleVerifier).toContain('buildId !== "mobile-territory-v4"');
   });
 
   it("déclare une cible PostgreSQL Supabase sans dépendance Manus obligatoire", () => {
