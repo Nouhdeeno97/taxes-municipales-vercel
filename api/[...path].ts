@@ -55,6 +55,15 @@ export default function handler(request: IncomingMessage, response: ServerRespon
     return;
   }
 
+  forwardMunicipalApi(request, response);
+}
+
+/**
+ * Transmet une requête API à Express après que Vercel a choisi la fonction
+ * correspondant à son chemin. Cette exportation est aussi utilisée par
+ * `api/trpc/[procedure].ts` pour les POST `/api/trpc/<procedure>`.
+ */
+export function forwardMunicipalApi(request: IncomingMessage, response: ServerResponse) {
   municipalAppPromise ??= loadMunicipalApp();
   municipalAppPromise.then(
     app => app(request, response),

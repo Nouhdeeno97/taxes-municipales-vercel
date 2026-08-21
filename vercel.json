@@ -5,6 +5,9 @@
   "functions": {
     "api/[...path].ts": {
       "includeFiles": "serverless/municipal-app.cjs"
+    },
+    "api/trpc/[procedure].ts": {
+      "includeFiles": "serverless/municipal-app.cjs"
     }
   },
   "headers": [
