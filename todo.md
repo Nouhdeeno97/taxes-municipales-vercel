@@ -167,3 +167,4 @@
 - [ ] Convenir avec la mairie du périmètre métier et du circuit de double validation requis avant d’activer toute purge irréversible ; l’import SQL direct reste exclu au profit de la restauration complète gérée par la plateforme.
 - [x] Faire utiliser aux aperçus, impressions et réimpressions de reçus l’identité municipale actuellement configurée : nom de la mairie, nom de plateforme et logo courant.
 - [ ] Migrer vers une base et un serveur directement administrés par la mairie avant d’activer un export SQL, un import et une purge exécutés exclusivement hors de l’infrastructure gérée, avec préservation de l’audit et protections anti-erreur.
+- [x] Préparer la documentation et les contrôles de configuration nécessaires pour transférer ultérieurement la maintenance SQL vers une infrastructure administrée par la mairie, sans modifier le fonctionnement de l’hébergement actuel.

@@ -377,3 +377,16 @@ Les impressions originales et les réimpressions ne contiennent plus d’identit
 | Régression | Deux tests unitaires vérifient la conservation des valeurs configurées et les valeurs de repli sûres. |
 
 La demande d’une base totalement indépendante de l’infrastructure actuellement gérée ne peut pas être satisfaite par une simple page dans cette version : l’application et sa base sont aujourd’hui hébergées sur une plateforme gérée. Une sauvegarde SQL, une restauration SQL et une purge effectuées exclusivement sur l’infrastructure de la mairie exigent une migration préalable vers une base et un serveur directement administrés par la mairie. La fonctionnalité reste donc volontairement non activée tant que cette cible d’hébergement n’est pas choisie et sécurisée. La suite compte désormais **70 tests réussis sur 26 fichiers** et le build de production est valide.
+
+## Préparation au futur serveur de la mairie — 21 août 2026
+
+Conformément à la décision de conserver l’hébergement actuel dans cette phase, l’espace **Base de données** ne propose aucune action SQL directe. Il indique désormais clairement le mode en cours, tout en présentant le chemin de migration vers un serveur applicatif et une base administrés par la mairie.
+
+| Point contrôlé | Résultat |
+|---|---|
+| Mode actuel | L’instantané complet sécurisé reste disponible tant que l’application est hébergée dans son environnement actuel. |
+| Préparation future | Le menu explique les quatre étapes : préparer les serveurs municipaux, transférer la configuration, exécuter une migration contrôlée et activer ensuite la maintenance SQL locale avec double validation. |
+| Protections | L’import, la restauration et la purge ne sont pas activés avant la migration ; le journal d’audit reste exclu de toute purge. |
+| Documentation | Le fichier `GUIDE_DEPLOIEMENT_MUNICIPAL.md` détaille prérequis, responsabilités, déroulement de migration et contrôles attendus. |
+
+La vérification visuelle authentifiée confirme l’accès restreint au droit `database.maintenance`, la lisibilité de la distinction entre mode actuel et cible municipale, ainsi que l’absence d’action destructive. Les contrôles techniques maintiennent **70 tests réussis sur 26 fichiers**, TypeScript sans erreur et build de production valide.
