@@ -175,3 +175,4 @@
 - [x] Produire un guide Word complet de déploiement local, Vercel, hébergement mutualisé, sous-domaine et serveur dédié, incluant les prérequis, variables, base de données, sécurité, commandes et procédures de retour arrière.
 - [x] Créer, si l’autorisation GitHub le permet, un second dépôt nommé « taxes-municipales-vercel » et y publier une copie vérifiée de la version actuelle, sans modifier le dépôt principal.
 - [x] Réserver les modifications futures au dépôt GitHub taxes-municipales-vercel et ne plus modifier le dépôt principal taxes-municipales-FINAL.
+- [x] Adapter exclusivement taxes-municipales-vercel à l’hébergement Vercel : architecture serverless, configuration de build, variables d’environnement, documentation de déploiement et contrôles automatisés.

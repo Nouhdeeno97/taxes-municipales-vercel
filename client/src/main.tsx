@@ -8,6 +8,21 @@ import { OFFLINE_QUERY_CACHE_KEY, shouldPersistOfflineQuery } from "@shared/offl
 import App from "./App";
 import "./index.css";
 
+function installOptionalAnalytics() {
+  const endpoint = import.meta.env.VITE_ANALYTICS_ENDPOINT?.replace(/\/$/, "");
+  const websiteId = import.meta.env.VITE_ANALYTICS_WEBSITE_ID;
+
+  if (!endpoint || !websiteId) return;
+
+  const analyticsScript = document.createElement("script");
+  analyticsScript.defer = true;
+  analyticsScript.src = `${endpoint}/umami`;
+  analyticsScript.dataset.websiteId = websiteId;
+  document.head.appendChild(analyticsScript);
+}
+
+installOptionalAnalytics();
+
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js", { scope: "/" }).then(registration => registration.update()).catch(() => undefined));
 }

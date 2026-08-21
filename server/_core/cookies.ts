@@ -39,10 +39,14 @@ export function getSessionCookieOptions(
   //       ? hostname
   //       : undefined;
 
+  const secure = isSecureRequest(req);
+
   return {
     httpOnly: true,
     path: "/",
-    sameSite: "none",
-    secure: isSecureRequest(req),
+    // SameSite=None est obligatoire pour le retour OAuth intersite, mais un
+    // navigateur refuse ce mode si la requête locale n’est pas chiffrée.
+    sameSite: secure ? "none" : "lax",
+    secure,
   };
 }
