@@ -381,16 +381,34 @@ export const municipalRouter = router({
     }),
     create: protectedProcedure.input(z.object({ taxpayerId: z.string().uuid(), activityTypeId: z.string().uuid(), label: z.string().trim().min(2).max(220), locationType: z.enum(["ZONE", "MARKET", "MARKET_LOCATION", "MOBILE", "CUSTOM"]), zoneId: z.string().uuid().optional(), marketId: z.string().uuid().optional(), marketLocationId: z.string().uuid().optional(), address: z.string().trim().max(500).optional(), startedAt: z.coerce.date() })).mutation(async ({ ctx, input }) => {
       const municipalityId = await requireAccess(ctx.user, "activities", "create");
-      if (input.marketLocationId) await requireTerritoryAccess(ctx.user, "MARKET_LOCATION", input.marketLocationId);
-      else if (input.marketId) await requireTerritoryAccess(ctx.user, "MARKET", input.marketId);
-      else if (input.zoneId) await requireTerritoryAccess(ctx.user, "ZONE", input.zoneId);
       const db = await requireDb();
       const taxpayer = await db.select({ id: taxpayers.id, type: taxpayers.type, nationalId: taxpayers.nationalId, taxId: taxpayers.taxId }).from(taxpayers).where(and(eq(taxpayers.id, input.taxpayerId), eq(taxpayers.municipalityId, municipalityId), eq(taxpayers.status, "ACTIVE"))).limit(1);
       mustGet(taxpayer[0], "Le redevable actif est introuvable.");
+      const activityType = await db.select({ id: activityTypes.id }).from(activityTypes).innerJoin(activityCategories, eq(activityTypes.categoryId, activityCategories.id)).where(and(eq(activityTypes.id, input.activityTypeId), eq(activityTypes.isActive, true), eq(activityCategories.isActive, true), eq(activityCategories.municipalityId, municipalityId))).limit(1);
+      mustGet(activityType[0], "Le type d’activité sélectionné est introuvable ou inactif pour cette mairie.");
+
+      let territory: { zoneId?: string; marketId?: string; marketLocationId?: string } = {};
+      if (input.locationType === "ZONE") {
+        if (!input.zoneId) throw new TRPCError({ code: "BAD_REQUEST", message: "Une zone est requise pour ce type de localisation." });
+        const zone = await db.select({ id: zones.id }).from(zones).innerJoin(sectors, eq(zones.sectorId, sectors.id)).where(and(eq(zones.id, input.zoneId), eq(zones.isActive, true), eq(sectors.isActive, true), eq(sectors.municipalityId, municipalityId))).limit(1);
+        territory = { zoneId: mustGet(zone[0], "La zone sélectionnée est introuvable ou n’appartient pas à cette mairie.").id };
+        await requireTerritoryAccess(ctx.user, "ZONE", territory.zoneId);
+      } else if (input.locationType === "MARKET") {
+        if (!input.marketId) throw new TRPCError({ code: "BAD_REQUEST", message: "Un marché est requis pour ce type de localisation." });
+        const market = await db.select({ marketId: markets.id, zoneId: zones.id }).from(markets).innerJoin(zones, eq(markets.zoneId, zones.id)).innerJoin(sectors, eq(zones.sectorId, sectors.id)).where(and(eq(markets.id, input.marketId), eq(markets.isActive, true), eq(zones.isActive, true), eq(sectors.isActive, true), eq(sectors.municipalityId, municipalityId))).limit(1);
+        const resolvedMarket = mustGet(market[0], "Le marché sélectionné est introuvable ou n’appartient pas à cette mairie.");
+        territory = { zoneId: resolvedMarket.zoneId, marketId: resolvedMarket.marketId };
+        await requireTerritoryAccess(ctx.user, "MARKET", territory.marketId);
+      } else if (input.locationType === "MARKET_LOCATION") {
+        if (!input.marketLocationId) throw new TRPCError({ code: "BAD_REQUEST", message: "Un emplacement de marché est requis pour ce type de localisation." });
+        const marketLocation = await db.select({ marketLocationId: marketLocations.id, marketId: markets.id, zoneId: zones.id }).from(marketLocations).innerJoin(markets, eq(marketLocations.marketId, markets.id)).innerJoin(zones, eq(markets.zoneId, zones.id)).innerJoin(sectors, eq(zones.sectorId, sectors.id)).where(and(eq(marketLocations.id, input.marketLocationId), eq(markets.isActive, true), eq(zones.isActive, true), eq(sectors.isActive, true), eq(sectors.municipalityId, municipalityId))).limit(1);
+        const resolvedLocation = mustGet(marketLocation[0], "L’emplacement sélectionné est introuvable ou n’appartient pas à cette mairie.");
+        territory = { zoneId: resolvedLocation.zoneId, marketId: resolvedLocation.marketId, marketLocationId: resolvedLocation.marketLocationId };
+        await requireTerritoryAccess(ctx.user, "MARKET_LOCATION", territory.marketLocationId);
+      }
+      // MOBILE et CUSTOM ne doivent jamais conserver une référence territoriale obsolète d’un ancien formulaire ou cache offline.
       const id = randomUUID();
-      const payload = { id, municipalityId, reference: reference("ACT"), currentTaxpayerId: input.taxpayerId, activityTypeId: input.activityTypeId, label: input.label, locationType: input.locationType, zoneId: input.zoneId, marketId: input.marketId, marketLocationId: input.marketLocationId, address: input.address, startedAt: input.startedAt, createdBy: ctx.user.id };
-      const resolvedLocation = input.marketLocationId ? (await db.select({ marketId: marketLocations.marketId }).from(marketLocations).where(eq(marketLocations.id, input.marketLocationId)).limit(1))[0] : undefined;
-      const resolvedMarketId = input.marketId ?? resolvedLocation?.marketId;
+      const payload = { id, municipalityId, reference: reference("ACT"), currentTaxpayerId: input.taxpayerId, activityTypeId: input.activityTypeId, label: input.label, locationType: input.locationType, ...territory, address: input.address, startedAt: input.startedAt, createdBy: ctx.user.id };
       let initialObligationCount = 0;
       await db.transaction(async tx => {
         await tx.insert(activities).values(payload);
@@ -922,7 +940,8 @@ export const municipalRouter = router({
           else if (payload.marketId) await requireTerritoryAccess(ctx.user, "MARKET", payload.marketId);
           else if (payload.zoneId) await requireTerritoryAccess(ctx.user, "ZONE", payload.zoneId);
           mustGet((await tx.select({ id: taxpayers.id }).from(taxpayers).where(and(eq(taxpayers.id, payload.taxpayerId), eq(taxpayers.municipalityId, municipalityId), eq(taxpayers.status, "ACTIVE"))).limit(1))[0], "Redevable actif introuvable après synchronisation.");
-          await tx.insert(activities).values({ id: input.entityId, municipalityId, reference: reference("ACT"), currentTaxpayerId: payload.taxpayerId, activityTypeId: payload.activityTypeId, label: payload.label, locationType: payload.locationType, zoneId: payload.zoneId, marketId: payload.marketId, marketLocationId: payload.marketLocationId, address: payload.address, startedAt: payload.startedAt, createdBy: ctx.user.id });
+          const offlineTerritory = payload.locationType === "MOBILE" || payload.locationType === "CUSTOM" ? {} : { zoneId: payload.zoneId, marketId: payload.marketId, marketLocationId: payload.marketLocationId };
+          await tx.insert(activities).values({ id: input.entityId, municipalityId, reference: reference("ACT"), currentTaxpayerId: payload.taxpayerId, activityTypeId: payload.activityTypeId, label: payload.label, locationType: payload.locationType, ...offlineTerritory, address: payload.address, startedAt: payload.startedAt, createdBy: ctx.user.id });
           await tx.insert(activityOwnerships).values({ id: randomUUID(), activityId: input.entityId, taxpayerId: payload.taxpayerId, startDate: payload.startedAt, transferredBy: ctx.user.id });
         }
         await tx.update(syncOperations).set({ status: "SYNCED", result: { entityId: input.entityId, command: input.command }, processedAt: new Date() }).where(and(eq(syncOperations.deviceId, input.deviceId), eq(syncOperations.operationId, input.operationId)));
