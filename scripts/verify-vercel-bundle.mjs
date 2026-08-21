@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -16,8 +17,15 @@ if (typeof createMunicipalApp !== "function") {
   throw new Error("Le bundle Vercel n’exporte pas createMunicipalApp.");
 }
 
-if (buildId !== "mobile-territory-v4") {
+if (buildId !== "mobile-territory-v5") {
   throw new Error(`Le bundle Vercel ne correspond pas à la révision MOBILE attendue (empreinte reçue : ${String(buildId)}).`);
 }
 
-console.info(`Bundle CommonJS Vercel chargé : createMunicipalApp disponible (${buildId}).`);
+const bundleContent = readFileSync(bundlePath, "utf8");
+const mobileTerritoryGuard = 'input.locationType === "MOBILE" || input.locationType === "CUSTOM"';
+
+if (!bundleContent.includes(mobileTerritoryGuard) || !bundleContent.includes("territoryKeys: Object.keys(territory)")) {
+  throw new Error("Le bundle Vercel ne contient pas la normalisation MOBILE/CUSTOM et son diagnostic d’insertion attendus.");
+}
+
+console.info(`Bundle CommonJS Vercel chargé : createMunicipalApp, normalisation MOBILE/CUSTOM et diagnostic d’insertion disponibles (${buildId}).`);

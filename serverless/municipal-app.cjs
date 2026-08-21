@@ -72162,6 +72162,18 @@ var money2 = external_exports.number().finite().positive().max(1e9);
 var moneyValue = (value) => value.toFixed(2);
 var reference = (prefix) => `${prefix}-${(/* @__PURE__ */ new Date()).getFullYear()}-${(0, import_crypto5.randomUUID)().slice(0, 8).toUpperCase()}`;
 var activityLocationTypeInput = external_exports.enum(["ZONE", "MARKET", "MARKET_LOCATION", "MOBILE", "CUSTOM"]);
+function activityCreateFailureMetadata(error46) {
+  const cause = error46 && typeof error46 === "object" && "cause" in error46 ? error46.cause ?? error46 : error46;
+  if (!cause || typeof cause !== "object") return { kind: typeof cause };
+  const source = cause;
+  return {
+    code: typeof source.code === "string" ? source.code : void 0,
+    constraint: typeof source.constraint_name === "string" ? source.constraint_name : typeof source.constraint === "string" ? source.constraint : void 0,
+    table: typeof source.table_name === "string" ? source.table_name : typeof source.table === "string" ? source.table : void 0,
+    detail: typeof source.detail === "string" ? source.detail : void 0,
+    message: typeof source.message === "string" ? source.message : void 0
+  };
+}
 var paginatedListInput = external_exports.object({ page: external_exports.number().int().min(0).default(0), pageSize: external_exports.number().int().min(5).max(100).default(25) });
 var activitySelectionInput = external_exports.object({
   all: external_exports.boolean().default(false),
@@ -72457,8 +72469,11 @@ var municipalRouter = router({
       mustGet(taxpayer[0], "Le redevable actif est introuvable.");
       const activityType = await db.select({ id: activityTypes.id }).from(activityTypes).innerJoin(activityCategories, eq(activityTypes.categoryId, activityCategories.id)).where(and(eq(activityTypes.id, input.activityTypeId), eq(activityTypes.isActive, true), eq(activityCategories.isActive, true), eq(activityCategories.municipalityId, municipalityId))).limit(1);
       mustGet(activityType[0], "Le type d\u2019activit\xE9 s\xE9lectionn\xE9 est introuvable ou inactif pour cette mairie.");
+      const isTerritoryFreeActivity = input.locationType === "MOBILE" || input.locationType === "CUSTOM";
       let territory = {};
-      if (input.locationType === "ZONE") {
+      if (isTerritoryFreeActivity) {
+        territory = {};
+      } else if (input.locationType === "ZONE") {
         if (!input.zoneId) throw new TRPCError({ code: "BAD_REQUEST", message: "Une zone est requise pour ce type de localisation." });
         const zone = await db.select({ id: zones.id }).from(zones).innerJoin(sectors, eq(zones.sectorId, sectors.id)).where(and(eq(zones.id, input.zoneId), eq(zones.isActive, true), eq(sectors.isActive, true), eq(sectors.municipalityId, municipalityId))).limit(1);
         territory = { zoneId: mustGet(zone[0], "La zone s\xE9lectionn\xE9e est introuvable ou n\u2019appartient pas \xE0 cette mairie.").id };
@@ -72479,12 +72494,23 @@ var municipalRouter = router({
       const id = (0, import_crypto5.randomUUID)();
       const payload = { id, municipalityId, reference: reference("ACT"), currentTaxpayerId: input.taxpayerId, activityTypeId: input.activityTypeId, label: input.label, locationType: input.locationType, ...territory, address: input.address, startedAt: input.startedAt, createdBy: ctx.user.id };
       let initialObligationCount = 0;
-      await db.transaction(async (tx) => {
-        await tx.insert(activities).values(payload);
-        await tx.insert(activityOwnerships).values({ id: (0, import_crypto5.randomUUID)(), activityId: id, taxpayerId: input.taxpayerId, startDate: input.startedAt, transferredBy: ctx.user.id });
-        await tx.insert(auditLogs).values({ municipalityId, actorId: ctx.user.id, action: "CREATE", module: "activities", entityType: "activity", entityId: id, afterValue: payload });
-        initialObligationCount = 0;
-      });
+      try {
+        await db.transaction(async (tx) => {
+          await tx.insert(activities).values(payload);
+          await tx.insert(activityOwnerships).values({ id: (0, import_crypto5.randomUUID)(), activityId: id, taxpayerId: input.taxpayerId, startDate: input.startedAt, transferredBy: ctx.user.id });
+          await tx.insert(auditLogs).values({ municipalityId, actorId: ctx.user.id, action: "CREATE", module: "activities", entityType: "activity", entityId: id, afterValue: payload });
+          initialObligationCount = 0;
+        });
+      } catch (error46) {
+        if (error46 instanceof TRPCError) throw error46;
+        console.error("[municipal.activities.create] \xC9chec d\u2019insertion", {
+          activityId: id,
+          locationType: input.locationType,
+          territoryKeys: Object.keys(territory),
+          database: activityCreateFailureMetadata(error46)
+        });
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "La cr\xE9ation de l\u2019activit\xE9 a \xE9chou\xE9. L\u2019incident a \xE9t\xE9 journalis\xE9 pour diagnostic." });
+      }
       return { ...payload, initialObligationCount };
     }),
     transfer: protectedProcedure.input(external_exports.object({ activityId: external_exports.string().uuid(), targetTaxpayerId: external_exports.string().uuid(), transferredAt: external_exports.coerce.date() })).mutation(async ({ ctx, input }) => {
@@ -73522,7 +73548,7 @@ async function createContext(opts) {
 }
 
 // server/_core/app.ts
-var MUNICIPAL_API_BUILD_ID = "mobile-territory-v4";
+var MUNICIPAL_API_BUILD_ID = "mobile-territory-v5";
 function createMunicipalApp() {
   const app = (0, import_express.default)();
   app.set("trust proxy", 1);

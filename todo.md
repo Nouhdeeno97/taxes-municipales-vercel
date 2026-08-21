@@ -194,3 +194,4 @@
 - [x] Tracer et corriger la mutation POST tRPC de connexion afin que la fonction Vercel renvoie du JSON tRPC au lieu d’une page HTML 404.
 - [x] Diagnostiquer l’échec PostgreSQL de création d’activité TAXI sur Vercel, aligner les références ou le mapping fautif, puis confirmer une création réelle.
 - [ ] Diagnostiquer l’échec d’insertion `activities` avec les UUID territoriaux réels, identifier la contrainte PostgreSQL et corriger le parcours de création associé.
+- [ ] Vérifier le bundle CommonJS exécuté par les deux fonctions Vercel, rendre la normalisation territoriale MOBILE/CUSTOM déterministe et consigner l’erreur PostgreSQL exacte sans modifier les données de démonstration.

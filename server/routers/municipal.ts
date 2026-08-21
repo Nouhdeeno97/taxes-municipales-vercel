@@ -56,6 +56,21 @@ const money = z.number().finite().positive().max(1_000_000_000);
 const moneyValue = (value: number) => value.toFixed(2);
 const reference = (prefix: string) => `${prefix}-${new Date().getFullYear()}-${randomUUID().slice(0, 8).toUpperCase()}`;
 const activityLocationTypeInput = z.enum(["ZONE", "MARKET", "MARKET_LOCATION", "MOBILE", "CUSTOM"]);
+
+function activityCreateFailureMetadata(error: unknown) {
+  const cause = error && typeof error === "object" && "cause" in error ? (error as { cause?: unknown }).cause ?? error : error;
+  if (!cause || typeof cause !== "object") return { kind: typeof cause };
+
+  const source = cause as { code?: unknown; constraint_name?: unknown; constraint?: unknown; table_name?: unknown; table?: unknown; detail?: unknown; message?: unknown };
+  return {
+    code: typeof source.code === "string" ? source.code : undefined,
+    constraint: typeof source.constraint_name === "string" ? source.constraint_name : typeof source.constraint === "string" ? source.constraint : undefined,
+    table: typeof source.table_name === "string" ? source.table_name : typeof source.table === "string" ? source.table : undefined,
+    detail: typeof source.detail === "string" ? source.detail : undefined,
+    message: typeof source.message === "string" ? source.message : undefined,
+  };
+}
+
 export const paginatedListInput = z.object({ page: z.number().int().min(0).default(0), pageSize: z.number().int().min(5).max(100).default(25) });
 export const activitySelectionInput = z.object({
   all: z.boolean().default(false),
@@ -387,8 +402,12 @@ export const municipalRouter = router({
       const activityType = await db.select({ id: activityTypes.id }).from(activityTypes).innerJoin(activityCategories, eq(activityTypes.categoryId, activityCategories.id)).where(and(eq(activityTypes.id, input.activityTypeId), eq(activityTypes.isActive, true), eq(activityCategories.isActive, true), eq(activityCategories.municipalityId, municipalityId))).limit(1);
       mustGet(activityType[0], "Le type d’activité sélectionné est introuvable ou inactif pour cette mairie.");
 
+      const isTerritoryFreeActivity = input.locationType === "MOBILE" || input.locationType === "CUSTOM";
       let territory: { zoneId?: string; marketId?: string; marketLocationId?: string } = {};
-      if (input.locationType === "ZONE") {
+      if (isTerritoryFreeActivity) {
+        // MOBILE et CUSTOM ne conservent jamais les références cachées, différées ou périmées d’un formulaire territorial.
+        territory = {};
+      } else if (input.locationType === "ZONE") {
         if (!input.zoneId) throw new TRPCError({ code: "BAD_REQUEST", message: "Une zone est requise pour ce type de localisation." });
         const zone = await db.select({ id: zones.id }).from(zones).innerJoin(sectors, eq(zones.sectorId, sectors.id)).where(and(eq(zones.id, input.zoneId), eq(zones.isActive, true), eq(sectors.isActive, true), eq(sectors.municipalityId, municipalityId))).limit(1);
         territory = { zoneId: mustGet(zone[0], "La zone sélectionnée est introuvable ou n’appartient pas à cette mairie.").id };
@@ -406,16 +425,26 @@ export const municipalRouter = router({
         territory = { zoneId: resolvedLocation.zoneId, marketId: resolvedLocation.marketId, marketLocationId: resolvedLocation.marketLocationId };
         await requireTerritoryAccess(ctx.user, "MARKET_LOCATION", territory.marketLocationId);
       }
-      // MOBILE et CUSTOM ne doivent jamais conserver une référence territoriale obsolète d’un ancien formulaire ou cache offline.
       const id = randomUUID();
       const payload = { id, municipalityId, reference: reference("ACT"), currentTaxpayerId: input.taxpayerId, activityTypeId: input.activityTypeId, label: input.label, locationType: input.locationType, ...territory, address: input.address, startedAt: input.startedAt, createdBy: ctx.user.id };
       let initialObligationCount = 0;
-      await db.transaction(async tx => {
-        await tx.insert(activities).values(payload);
-        await tx.insert(activityOwnerships).values({ id: randomUUID(), activityId: id, taxpayerId: input.taxpayerId, startDate: input.startedAt, transferredBy: ctx.user.id });
-        await tx.insert(auditLogs).values({ municipalityId, actorId: ctx.user.id, action: "CREATE", module: "activities", entityType: "activity", entityId: id, afterValue: payload });
-        initialObligationCount = 0;
-      });
+      try {
+        await db.transaction(async tx => {
+          await tx.insert(activities).values(payload);
+          await tx.insert(activityOwnerships).values({ id: randomUUID(), activityId: id, taxpayerId: input.taxpayerId, startDate: input.startedAt, transferredBy: ctx.user.id });
+          await tx.insert(auditLogs).values({ municipalityId, actorId: ctx.user.id, action: "CREATE", module: "activities", entityType: "activity", entityId: id, afterValue: payload });
+          initialObligationCount = 0;
+        });
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        console.error("[municipal.activities.create] Échec d’insertion", {
+          activityId: id,
+          locationType: input.locationType,
+          territoryKeys: Object.keys(territory),
+          database: activityCreateFailureMetadata(error),
+        });
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "La création de l’activité a échoué. L’incident a été journalisé pour diagnostic." });
+      }
       return { ...payload, initialObligationCount };
     }),
     transfer: protectedProcedure.input(z.object({ activityId: z.string().uuid(), targetTaxpayerId: z.string().uuid(), transferredAt: z.coerce.date() })).mutation(async ({ ctx, input }) => {
