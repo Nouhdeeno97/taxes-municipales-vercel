@@ -5,11 +5,16 @@ import { describe, expect, it } from "vitest";
 const projectRoot = path.resolve(import.meta.dirname, "..");
 
 describe("préparation Vercel", () => {
-  it("déclare une sortie publique, un build Vite dédié et un repli SPA qui préserve strictement les API", () => {
+  it("déclare une sortie publique, un bundle backend et un repli SPA qui préserve strictement les API", () => {
     const config = JSON.parse(fs.readFileSync(path.join(projectRoot, "vercel.json"), "utf8"));
 
     expect(config.buildCommand).toBe("pnpm run build:vercel");
     expect(config.outputDirectory).toBe("public");
+    expect(config.functions).toEqual({
+      "api/[...path].ts": {
+        includeFiles: "serverless/municipal-app.mjs",
+      },
+    });
     expect(config.rewrites).toEqual([
       {
         source: "/:path((?!api(?:/|$)).*)",
@@ -18,15 +23,22 @@ describe("préparation Vercel", () => {
     ]);
   });
 
-  it("fournit une fonction Vercel dynamique pour toutes les routes API sans écoute de port", () => {
+  it("fournit une fonction Vercel dynamique avec une santé isolée et un backend regroupé", () => {
     const entrypoint = fs.readFileSync(path.join(projectRoot, "server.ts"), "utf8");
     const vercelFunction = fs.readFileSync(path.join(projectRoot, "api", "[...path].ts"), "utf8");
+    const packageJson = JSON.parse(fs.readFileSync(path.join(projectRoot, "package.json"), "utf8"));
 
     expect(entrypoint).toContain("export default app");
     expect(entrypoint).not.toMatch(/^\s*app\.listen\s*\(/m);
-    expect(vercelFunction).toContain('import { createMunicipalApp } from "../server/_core/app"');
-    expect(vercelFunction).toContain("export default app");
+    expect(vercelFunction).toContain('const modulePath = "../serverless/municipal-app.mjs"');
+    expect(vercelFunction).toContain("await import(modulePath)");
+    expect(vercelFunction).toContain('requestPathname(request) === "/api/health"');
+    expect(vercelFunction).toContain("sendHealth(response)");
+    expect(vercelFunction).not.toContain('import { createMunicipalApp } from "../server/_core/app"');
     expect(vercelFunction).not.toMatch(/^\s*app\.listen\s*\(/m);
+
+    expect(packageJson.scripts["build:vercel:api"]).toContain("--bundle");
+    expect(packageJson.scripts["build:vercel:api"]).toContain("serverless/municipal-app.mjs");
   });
 
   it("déclare une cible PostgreSQL Supabase sans dépendance Manus obligatoire", () => {

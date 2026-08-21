@@ -189,3 +189,4 @@
 - [x] Corriger le script de démonstration selon les colonnes réellement créées par la migration Supabase, contrôler toutes ses insertions et republier le fichier SQL exécutable.
 - [x] Intégrer à la demande explicite le hash scrypt du commit distant dans le script corrigé, puis vérifier et publier la fusion.
 - [x] Corriger l’exposition Vercel de l’entrée Express serverless afin que `/api/health` et `/api/trpc` ne soient plus capturées par la réécriture SPA.
+- [x] Diagnostiquer et corriger l’échec d’invocation Vercel afin que `/api/health` réponde sans dépendre d’une initialisation PostgreSQL ou métier inutile.

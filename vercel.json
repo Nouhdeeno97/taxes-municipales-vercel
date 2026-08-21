@@ -2,6 +2,11 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "pnpm run build:vercel",
   "outputDirectory": "public",
+  "functions": {
+    "api/[...path].ts": {
+      "includeFiles": "serverless/municipal-app.mjs"
+    }
+  },
   "headers": [
     {
       "source": "/sw.js",
