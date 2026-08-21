@@ -1,4 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 type NodeHandler = (request: IncomingMessage, response: ServerResponse) => void;
 
@@ -14,8 +16,11 @@ async function loadMunicipalApp(): Promise<NodeHandler> {
   // qui évite l’échec « Dynamic require of path is not supported » d’un bundle
   // ESM sur le runtime Node.js serverless.
   if (process.env.VERCEL) {
-    const modulePath = "../serverless/municipal-app.cjs";
-    const bundledModule = (await import(modulePath)) as {
+    // La même passerelle est embarquée dans api/[...path] et dans
+    // api/trpc/[procedure]. Un chemin relatif serait résolu depuis chacune de
+    // ces fonctions et échouerait depuis le sous-répertoire `api/trpc`.
+    const moduleUrl = pathToFileURL(join(process.cwd(), "serverless", "municipal-app.cjs")).href;
+    const bundledModule = (await import(moduleUrl)) as {
       default?: { createMunicipalApp?: () => NodeHandler };
       createMunicipalApp: () => NodeHandler;
     };

@@ -34,8 +34,9 @@ describe("préparation Vercel", () => {
 
     expect(entrypoint).toContain("export default app");
     expect(entrypoint).not.toMatch(/^\s*app\.listen\s*\(/m);
-    expect(vercelFunction).toContain('const modulePath = "../serverless/municipal-app.cjs"');
-    expect(vercelFunction).toContain("await import(modulePath)");
+    expect(vercelFunction).toContain('join(process.cwd(), "serverless", "municipal-app.cjs")');
+    expect(vercelFunction).toContain("pathToFileURL");
+    expect(vercelFunction).toContain("await import(moduleUrl)");
     expect(vercelFunction).toContain('requestPathname(request) === "/api/health"');
     expect(vercelFunction).toContain("sendHealth(response)");
     expect(vercelFunction).toContain("export function forwardMunicipalApi");
