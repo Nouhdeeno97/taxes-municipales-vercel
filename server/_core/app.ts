@@ -9,6 +9,13 @@ import { createContext } from "./context";
 import { registerTesterAccessRoutes } from "./testerAccess";
 
 /**
+ * Marqueur de révision du backend embarqué dans les fonctions Vercel.
+ * Il ne contient aucune donnée métier ni aucun secret ; il permet de vérifier
+ * qu’une fonction sert bien la révision incluant la normalisation MOBILE.
+ */
+export const MUNICIPAL_API_BUILD_ID = "mobile-territory-v3";
+
+/**
  * Construit l’application HTTP sans ouvrir de port.
  *
  * Le serveur local et la fonction Vercel réutilisent la même application afin

@@ -7,6 +7,8 @@ dist/
 build/
 /public/
 serverless/
+!serverless/
+!serverless/municipal-app.cjs
 *.dist
 
 # Environment variables

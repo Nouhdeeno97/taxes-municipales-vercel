@@ -31,6 +31,7 @@ describe("préparation Vercel", () => {
     const vercelFunction = fs.readFileSync(path.join(projectRoot, "api", "[...path].ts"), "utf8");
     const trpcProcedureFunction = fs.readFileSync(path.join(projectRoot, "api", "trpc", "[procedure].ts"), "utf8");
     const packageJson = JSON.parse(fs.readFileSync(path.join(projectRoot, "package.json"), "utf8"));
+    const gitignore = fs.readFileSync(path.join(projectRoot, ".gitignore"), "utf8");
 
     expect(entrypoint).toContain("export default app");
     expect(entrypoint).not.toMatch(/^\s*app\.listen\s*\(/m);
@@ -40,11 +41,14 @@ describe("préparation Vercel", () => {
     expect(vercelFunction).not.toContain("await import(moduleUrl)");
     expect(vercelFunction).toContain('requestPathname(request) === "/api/health"');
     expect(vercelFunction).toContain("sendHealth(response)");
+    expect(vercelFunction).toContain('"X-Municipal-Api-Build": municipalApiBuildId');
+    expect(vercelFunction).toContain("MUNICIPAL_API_BUILD_ID");
     expect(vercelFunction).toContain("export function forwardMunicipalApi");
     expect(vercelFunction).not.toContain('import { createMunicipalApp } from "../server/_core/app"');
     expect(vercelFunction).not.toMatch(/^\s*app\.listen\s*\(/m);
     expect(trpcProcedureFunction).toContain('from "../../serverless/municipal-app.cjs"');
     expect(trpcProcedureFunction).toContain("createMunicipalAppFromBundle");
+    expect(trpcProcedureFunction).toContain("MUNICIPAL_API_BUILD_ID");
     expect(trpcProcedureFunction).not.toContain("await import(moduleUrl)");
     expect(trpcProcedureFunction).toContain("municipalAppPromise.then");
 
@@ -52,6 +56,7 @@ describe("préparation Vercel", () => {
     expect(packageJson.scripts["build:vercel:api"]).toContain("--format=cjs");
     expect(packageJson.scripts["build:vercel:api"]).toContain("serverless/municipal-app.cjs");
     expect(packageJson.scripts["verify:vercel-bundle"]).toContain("scripts/verify-vercel-bundle.mjs");
+    expect(gitignore).toContain("!serverless/municipal-app.cjs");
   });
 
   it("déclare une cible PostgreSQL Supabase sans dépendance Manus obligatoire", () => {

@@ -10,9 +10,14 @@ if (!existsSync(bundlePath)) {
 
 const bundledModule = await import(pathToFileURL(bundlePath).href);
 const createMunicipalApp = bundledModule.createMunicipalApp ?? bundledModule.default?.createMunicipalApp;
+const buildId = bundledModule.MUNICIPAL_API_BUILD_ID ?? bundledModule.default?.MUNICIPAL_API_BUILD_ID;
 
 if (typeof createMunicipalApp !== "function") {
   throw new Error("Le bundle Vercel n’exporte pas createMunicipalApp.");
 }
 
-console.info("Bundle CommonJS Vercel chargé : createMunicipalApp disponible.");
+if (buildId !== "mobile-territory-v3") {
+  throw new Error(`Le bundle Vercel ne correspond pas à la révision MOBILE attendue (empreinte reçue : ${String(buildId)}).`);
+}
+
+console.info(`Bundle CommonJS Vercel chargé : createMunicipalApp disponible (${buildId}).`);
