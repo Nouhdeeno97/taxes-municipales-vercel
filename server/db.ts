@@ -1,14 +1,22 @@
 import { and, eq, gt, isNull, or } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
+import { drizzle } from "drizzle-orm/postgres-js";
 import { invitationRoles, InsertUser, roles, testerAccessTokens, userInvitations, userRoles, users } from "../drizzle/schema";
 import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from "crypto";
 import { ENV } from "./_core/env";
+import postgres from "postgres";
 
 let database: ReturnType<typeof drizzle> | null = null;
+let client: ReturnType<typeof postgres> | null = null;
 
 export async function getDb() {
   if (!database && process.env.DATABASE_URL) {
-    database = drizzle(process.env.DATABASE_URL);
+    client = postgres(process.env.DATABASE_URL, {
+      max: 1,
+      prepare: false,
+      idle_timeout: 20,
+      connect_timeout: 10,
+    });
+    database = drizzle(client);
   }
   return database;
 }
@@ -30,7 +38,7 @@ export function prepareOAuthUpsertValues(user: InsertUser): InsertUser {
     email: user.email ?? null,
     loginMethod: user.loginMethod ?? null,
     lastSignedIn: user.lastSignedIn ?? new Date(),
-    role: user.role ?? (user.openId === ENV.ownerOpenId ? "admin" : "user"),
+    role: user.role ?? "user",
   };
 }
 
@@ -39,7 +47,8 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   const db = await getDb();
   if (!db) return;
 
-  await db.insert(users).values(values).onDuplicateKeyUpdate({
+  await db.insert(users).values(values).onConflictDoUpdate({
+    target: users.openId,
     set: {
       name: values.name,
       email: values.email,
@@ -111,7 +120,7 @@ export async function createLocalUser(input: {
   const displayName = input.displayName.trim();
   if (displayName.length < 2) throw new Error("Le nom complet est requis.");
   const localUsername = normalizeLocalUsername(input.localUsername);
-  const passwordHash = hashLocalPassword(input.password);
+    const passwordHash = hashLocalPassword(input.password);
   const userId = await db.transaction(async tx => {
     const inserted = await tx.insert(users).values({
       openId: `local:${randomUUID()}`,
@@ -124,8 +133,9 @@ export async function createLocalUser(input: {
       isActive: true,
       mustChangePassword: true,
       lastSignedIn: new Date(),
-    });
-    const id = Number(inserted[0].insertId);
+    }).returning({ id: users.id });
+    const id = inserted[0]?.id;
+    if (!id) throw new Error("La création du compte local a échoué.");
     for (const roleId of input.roleIds) {
       await tx.insert(userRoles).values({ id: randomUUID(), userId: id, roleId, assignedBy: input.createdBy });
     }
@@ -207,8 +217,9 @@ export async function createTesterAccess(input: {
       role: "user",
       isActive: true,
       lastSignedIn: new Date(),
-    });
-    const id = Number(inserted[0].insertId);
+    }).returning({ id: users.id });
+    const id = inserted[0]?.id;
+    if (!id) throw new Error("La création du compte temporaire a échoué.");
     for (const roleId of input.roleIds) {
       await tx.insert(userRoles).values({ id: randomUUID(), userId: id, roleId, assignedBy: input.createdBy });
     }
@@ -229,8 +240,10 @@ export async function consumeTesterAccessToken(rawToken: string) {
     isNull(testerAccessTokens.redeemedAt), isNull(testerAccessTokens.revokedAt), gt(testerAccessTokens.expiresAt, now),
   )).limit(1))[0];
   if (!token) return undefined;
-  const updated = await db.update(testerAccessTokens).set({ redeemedAt: now }).where(and(eq(testerAccessTokens.id, token.id), isNull(testerAccessTokens.redeemedAt)));
-  if (!updated[0]?.affectedRows) return undefined;
+  const updated = await db.update(testerAccessTokens).set({ redeemedAt: now })
+    .where(and(eq(testerAccessTokens.id, token.id), isNull(testerAccessTokens.redeemedAt)))
+    .returning({ id: testerAccessTokens.id });
+  if (updated.length === 0) return undefined;
   const user = await getUserById(token.userId);
   return user?.isActive ? user : undefined;
 }
@@ -307,7 +320,10 @@ export async function activateInvitationForUser(openId: string, email: string | 
     await tx.update(users).set({ municipalityId: activation.municipalityId, isActive: true, role: "user" }).where(eq(users.id, activation.userId));
     await tx.update(userInvitations).set({ status: "ACTIVATED", activatedUserId: activation.userId, updatedAt: new Date() }).where(eq(userInvitations.id, activation.invitationId));
     for (const roleId of activation.roleIds) {
-      await tx.insert(userRoles).values({ id: randomUUID(), userId: activation.userId, roleId, assignedBy: activation.invitedBy }).onDuplicateKeyUpdate({ set: { expiresAt: null, assignedBy: activation.invitedBy } });
+      await tx.insert(userRoles).values({ id: randomUUID(), userId: activation.userId, roleId, assignedBy: activation.invitedBy }).onConflictDoUpdate({
+        target: [userRoles.userId, userRoles.roleId],
+        set: { expiresAt: null, assignedBy: activation.invitedBy },
+      });
     }
   });
   return { userId: activation.userId, municipalityId: activation.municipalityId, invitationId: activation.invitationId };

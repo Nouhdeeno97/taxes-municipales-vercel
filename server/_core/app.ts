@@ -6,8 +6,6 @@ import express, {
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
-import { registerOAuthRoutes } from "./oauth";
-import { registerStorageProxy } from "./storageProxy";
 import { registerTesterAccessRoutes } from "./testerAccess";
 
 /**
@@ -29,8 +27,6 @@ export function createMunicipalApp() {
     res.set("Cache-Control", "no-store").status(200).json({ status: "ok" });
   });
 
-  registerStorageProxy(app);
-  registerOAuthRoutes(app);
   registerTesterAccessRoutes(app);
   app.use(
     "/api/trpc",

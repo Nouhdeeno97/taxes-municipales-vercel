@@ -13,7 +13,6 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { startLogin } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import { useOfflineQueue } from "@/hooks/useOfflineQueue";
 import { useOfflineCreate } from "@/hooks/useOfflineCreate";
@@ -76,7 +75,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <p className="mt-6 text-xs font-bold uppercase tracking-[0.18em] text-blue-700">Plateforme municipale</p>
           <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">Gestion fiscale & collecte</h1>
           <p className="mt-4 text-sm leading-6 text-slate-600">Accédez aux opérations de terrain, aux contrôles de caisse et aux rapports de la mairie.</p>
-          <div className="mt-7 grid gap-3"><Button onClick={() => { window.location.href = "/connexion"; }} className="h-11 w-full bg-blue-700 hover:bg-blue-800">Connexion municipale</Button><Button variant="outline" onClick={() => startLogin()} className="h-10 w-full border-blue-200 text-blue-800 hover:bg-blue-50">Connexion Manus (administration)</Button></div>
+          <div className="mt-7 grid gap-3"><Button onClick={() => { window.location.href = "/connexion"; }} className="h-11 w-full bg-blue-700 hover:bg-blue-800">Connexion municipale</Button></div>
         </section>
       </main>
     );

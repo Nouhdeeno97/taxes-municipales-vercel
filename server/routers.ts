@@ -7,7 +7,6 @@ import type { User } from "../drizzle/schema";
 import { authenticateLocalUser, requireDb } from "./db";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { LOCAL_COOKIE, LOCAL_SESSION_MAX_AGE_SECONDS, signLocalSession } from "./_core/localAccess";
-import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { municipalRouter } from "./routers/municipal";
 
@@ -19,7 +18,6 @@ export function toPublicSessionUser(user: User | null) {
 }
 
 export const appRouter = router({
-  system: systemRouter,
   auth: router({
     me: publicProcedure.query(opts => toPublicSessionUser(opts.ctx.user)),
     localLogin: publicProcedure.input(z.object({ localUsername: z.string().min(1).max(64), password: z.string().min(1).max(512) })).mutation(async ({ ctx, input }) => {
@@ -39,7 +37,6 @@ export const appRouter = router({
       return { success: true } as const;
     }),
     logout: publicProcedure.mutation(({ ctx }) => {
-      ctx.res.clearCookie(COOKIE_NAME, { ...getSessionCookieOptions(ctx.req), maxAge: -1 });
       ctx.res.clearCookie(LOCAL_COOKIE, { ...getSessionCookieOptions(ctx.req), maxAge: -1 });
       ctx.res.clearCookie("tm_tester_session", { ...getSessionCookieOptions(ctx.req), maxAge: -1 });
       return { success: true } as const;

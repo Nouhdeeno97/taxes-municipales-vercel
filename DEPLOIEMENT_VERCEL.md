@@ -1,45 +1,72 @@
-# Déploiement sur Vercel
+# Déploiement autonome : Vercel + Supabase
 
-Ce dépôt peut être importé depuis GitHub dans Vercel. Il conserve une application React/Vite servie comme SPA et une application Express exportée depuis `server.ts` pour les routes métier, OAuth et tRPC.
+Ce dépôt est conçu pour fonctionner sans service Manus. **Vercel** héberge la SPA React/Vite et la fonction Express/tRPC ; **Supabase** fournit PostgreSQL et, pour les logos municipaux, Supabase Storage. L’authentification applicative repose sur les comptes locaux et les sessions signées de la plateforme : Supabase Auth n’est pas requis.
 
-> **Important :** la mise en ligne Vercel ne transfère pas la base de données, les secrets OAuth ni le stockage de l’hébergement Manus. Ces dépendances doivent être configurées dans un environnement administré par la mairie avant la production.
+> **Démonstration et production sont séparées.** Une base Supabase de démonstration peut être créée immédiatement. Avant une exploitation municipale réelle, la mairie doit disposer d’un projet Supabase, d’un domaine Vercel et d’une politique de sauvegarde administrés par elle.
 
-## Procédure d’import
+## 1. Préparer Supabase
 
-1. Dans Vercel, sélectionnez **Add New → Project**, puis importez le dépôt `Nouhdeeno97/taxes-municipales-vercel`.
-2. Conservez la branche `main` comme branche de production.
-3. Vérifiez que Vercel utilise la commande `pnpm run build:vercel` et le répertoire de sortie `public`. Ces valeurs sont versionnées dans `vercel.json`.
-4. Renseignez les variables de la section suivante dans **Settings → Environment Variables**, au minimum pour l’environnement **Production**. Répliquez des valeurs de test distinctes dans **Preview** si les déploiements de prévisualisation doivent fonctionner.
-5. Déployez, puis ouvrez `/api/health`. La réponse attendue est `{ "status": "ok" }`.
+Créez un projet Supabase, puis récupérez sa **chaîne PostgreSQL de pooler de transactions** pour l’environnement applicatif serverless. Le client Drizzle utilise PostgreSQL via `postgres.js` avec des connexions préparées désactivées, ce qui convient à ce type de pooler.[1]
 
-## Variables à configurer dans Vercel
+Créez ensuite dans **Storage** un compartiment nommé `municipal-assets`. La configuration actuelle génère des URL publiques pour les logos municipaux : le compartiment doit donc être public pour la démonstration. Ne téléversez pas de documents sensibles dans ce compartiment. Pour une production étendue à des fichiers confidentiels, faites évoluer le service vers des URL signées et un compartiment privé.[2]
 
-| Variable | Statut | Rôle | Consigne |
-|---|---|---|---|
-| `DATABASE_URL` | Obligatoire | Connexion MySQL compatible Drizzle | Utiliser une base administrée par la mairie, accessible depuis Vercel par TLS. |
-| `JWT_SECRET` | Obligatoire | Signature des sessions locales | Générer une valeur aléatoire longue ; ne jamais la partager ni la commiter. |
-| `VITE_APP_ID` | Obligatoire pour OAuth | Identifiant de l’application OAuth Manus | Configurer l’application OAuth avec le domaine Vercel final. |
-| `OAUTH_SERVER_URL` | Obligatoire pour OAuth | Serveur OAuth | Renseigner l’URL autorisée par le fournisseur OAuth. |
-| `VITE_OAUTH_PORTAL_URL` | Obligatoire pour OAuth | Portail de connexion OAuth | Renseigner l’URL autorisée par le fournisseur OAuth. |
-| `OWNER_OPEN_ID` | Selon la gouvernance | Compte propriétaire initial | Définir uniquement avec un identifiant validé par la mairie. |
-| `OWNER_NAME` | Selon la gouvernance | Nom du propriétaire initial | Définir avec la gouvernance municipale. |
-| `VITE_ANALYTICS_ENDPOINT` | Optionnelle | Point d’entrée d’analytique | Sans valeur, aucun script d’analytique n’est injecté. |
-| `VITE_ANALYTICS_WEBSITE_ID` | Optionnelle | Identifiant d’analytique | À définir seulement avec le point d’entrée correspondant. |
+| Ressource Supabase | Configuration attendue | Usage applicatif |
+|---|---|---|
+| PostgreSQL | Projet Supabase actif, accès pooler TLS | Données métier, sessions, fiscalité, reçus et audit. |
+| `municipal-assets` | Compartiment public pour cette démonstration | Logos de mairie importés depuis l’administration. |
+| Supabase Auth | Non configuré | Les comptes locaux permanents et sessions signées existantes sont conservés. |
 
-## Points de contrôle avant production
+## 2. Appliquer le schéma PostgreSQL
 
-La redirection OAuth doit être déclarée chez le fournisseur sous la forme `https://<domaine-final>/api/oauth/callback`. Les déploiements de prévisualisation disposent de domaines distincts : utilisez-les uniquement si votre fournisseur OAuth les autorise explicitement.
+Le schéma Drizzle PostgreSQL et sa migration initiale se trouvent dans `drizzle/schema.ts` et `drizzle/supabase/`. Les anciennes migrations MySQL/TiDB sont archivées sous `drizzle/legacy-mysql/` et ne doivent jamais être exécutées sur Supabase.
 
-L’entrée `server.ts` est sans écoute de port et est exécutée par Vercel comme fonction Node.js. Les appels tRPC restent relatifs à `/api/trpc`, ce qui préserve les cookies et évite toute configuration CORS entre deux domaines. Les routes applicatives sont réécrites vers `index.html`, tandis que `/api/*` et `/manus-storage/*` restent destinées à Express.
+Depuis un environnement d’administration sécurisé où `DATABASE_URL` est temporairement disponible, appliquez la migration avant le premier déploiement :
 
-Le service worker est distribué avec une directive `must-revalidate` afin que les mises à jour de la plateforme soient récupérées correctement après chaque déploiement.
+```bash
+pnpm drizzle-kit migrate
+```
 
-## Dépendances à migrer avant usage complet
+N’exécutez pas les migrations pendant le build Vercel. Les changements de schéma doivent être vérifiés et appliqués séparément, puis la version applicative correspondante peut être déployée. Pour transférer les données historiques MySQL/TiDB, utilisez une procédure dédiée et vérifiée : export source, conversion des données, import PostgreSQL, contrôles de comptes, soldes, obligations, encaissements, reçus et audit. La migration Drizzle crée la structure ; elle ne convertit pas automatiquement les données historiques.
 
-Le code hérité comprend un proxy de stockage dépendant des variables internes `BUILT_IN_FORGE_API_URL` et `BUILT_IN_FORGE_API_KEY`. Ces valeurs appartiennent à l’hébergement Manus et ne doivent pas être copiées dans Vercel. Avant de permettre l’import d’un nouveau logo municipal en production, remplacez ce proxy par un stockage administré par la mairie, tel qu’un compartiment S3 privé avec URL signées ou une solution équivalente soumise à sa politique de sécurité.
+## 3. Variables à définir dans Vercel
 
-Après import, déclenchez une recette ciblée : connexion d’un compte local, création d’un redevable, impression d’un reçu, consultation d’un registre paginé et vérification de la reprise après une coupure réseau. Les deux dernières recettes externes déjà reportées — second compte OAuth réel et appareil de coupure réseau — restent à effectuer sur l’environnement final.
+Dans **Vercel → Settings → Environment Variables**, créez les variables suivantes pour **Production**. Créez des valeurs et une base distinctes pour **Preview** si les aperçus doivent être fonctionnels.
 
-## Sources
+| Variable | Requise | Usage | Consigne |
+|---|---:|---|---|
+| `DATABASE_URL` | Oui | Chaîne de connexion PostgreSQL Supabase pour Drizzle. | Utiliser la chaîne pooler TLS fournie par Supabase ; ne jamais la commiter. |
+| `JWT_SECRET` | Oui | Signature des sessions locales et temporaires. | Générer une valeur aléatoire longue, unique par environnement. |
+| `SUPABASE_URL` | Oui pour les logos | URL de projet Supabase. | Valeur serveur, utilisée uniquement par le service de stockage. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Oui pour les logos | Autorisation serveur d’écriture dans Supabase Storage. | Secret strictement serveur : jamais préfixé par `VITE_`, jamais exposé au navigateur. |
+| `SUPABASE_STORAGE_BUCKET` | Non | Nom du compartiment de logos. | Facultatif ; la valeur par défaut est `municipal-assets`. |
+| `NODE_ENV` | Non | Mode d’exécution Node. | Fourni par Vercel ; ne pas le définir manuellement. |
 
-Les décisions de configuration sont fondées sur la documentation officielle : [Express on Vercel](https://vercel.com/docs/frameworks/backend/express), [Vite on Vercel](https://vercel.com/docs/frameworks/frontend/vite), [Rewrites](https://vercel.com/docs/routing/rewrites) et [variables d’environnement](https://vercel.com/docs/environment-variables).
+> Aucune des variables `BUILT_IN_FORGE_*`, `VITE_FRONTEND_FORGE_*`, `VITE_APP_ID`, `OAUTH_SERVER_URL`, `VITE_OAUTH_PORTAL_URL`, `OWNER_OPEN_ID` ou `OWNER_NAME` n’est nécessaire à cette architecture autonome.
+
+## 4. Importer et déployer sur Vercel
+
+Importez le dépôt GitHub `Nouhdeeno97/taxes-municipales-vercel` dans Vercel, conservez `main` comme branche de production et laissez la configuration versionnée s’appliquer :
+
+| Paramètre Vercel | Valeur versionnée |
+|---|---|
+| Commande de build | `pnpm run build:vercel` |
+| Répertoire de sortie | `public` |
+| API serverless | `server.ts` |
+| Point de santé | `/api/health` |
+| SPA et liens profonds | Réécriture vers `/index.html`, à l’exclusion de `/api/*` |
+
+Après le premier déploiement, vérifiez `https://<domaine-vercel>/api/health`, puis testez une connexion locale, la création d’un redevable, l’émission d’un encaissement, l’aperçu d’un reçu, le téléversement d’un logo et un registre paginé.
+
+## 5. Exploitation et limites de la démonstration
+
+Vercel ne stocke pas les données de façon persistante dans le système de fichiers de la fonction. PostgreSQL et Supabase Storage sont les seules sources persistantes de cette architecture. Configurez les sauvegardes et les contrôles d’accès directement dans Supabase, et prévoyez un export PostgreSQL régulier avant la mise en production municipale.[3]
+
+Les comptes municipaux sont indépendants de Supabase Auth et de Manus. Le premier administrateur local doit être créé dans la base de démonstration via le mécanisme de bootstrap contrôlé de l’application ou une procédure d’initialisation administrée. Ne créez jamais un mot de passe en clair dans un script versionné.
+
+## Références
+
+[1] [Drizzle ORM — Supabase](https://orm.drizzle.team/docs/tutorials/drizzle-with-supabase)
+
+[2] [Supabase — Storage](https://supabase.com/docs/guides/storage)
+
+[3] [Vercel — Express](https://vercel.com/docs/frameworks/backend/express)

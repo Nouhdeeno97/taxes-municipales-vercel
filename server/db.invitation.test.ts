@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import { invitationRoles, roles, userInvitations, userRoles, users } from "../drizzle/schema";
 import { activateInvitationForUser, normalizeInvitationEmail, prepareOAuthUpsertValues } from "./db";
 
-describe("préautorisation des comptes", () => {
-  it("normalise l’adresse d’invitation avant le rapprochement OAuth", () => {
+describe("préautorisation interne des comptes", () => {
+  it("normalise l’adresse d’invitation avant le rapprochement du compte", () => {
     expect(normalizeInvitationEmail("  Agent.Collecte@Mairie.ga ")).toBe("agent.collecte@mairie.ga");
   });
 
@@ -11,22 +11,22 @@ describe("préautorisation des comptes", () => {
     expect(normalizeInvitationEmail("superviseur@mairie.ga")).toBe("superviseur@mairie.ga");
   });
 
-  it("ne rattache pas un premier compte OAuth à une mairie avant l’activation de son invitation", () => {
+  it("ne rattache pas un compte provisoire à une mairie avant l’activation de son invitation", () => {
     const provisional = prepareOAuthUpsertValues({
-      openId: "oauth:preautorisation-test",
+      openId: "provisional:preautorisation-test",
       email: "agent.preautorise@mairie.ga",
-      loginMethod: "manus",
+      loginMethod: "provisional",
     });
 
     expect(provisional.municipalityId).toBeNull();
     expect(provisional.role).toBe("user");
   });
 
-  it("rattache seulement après activation le compte OAuth provisoire et lui attribue les rôles invités", async () => {
+  it("rattache seulement après activation le compte provisoire et lui attribue les rôles invités", async () => {
     const provisional = prepareOAuthUpsertValues({
-      openId: "oauth:flux-complet-test",
+      openId: "provisional:flux-complet-test",
       email: "agent.collecte@mairie.ga",
-      loginMethod: "manus",
+      loginMethod: "provisional",
     });
     const municipalityId = "20000000-0000-4000-8000-000000000001";
     const roleIds = ["role-collecte", "role-consultation"];
@@ -36,7 +36,7 @@ describe("préautorisation des comptes", () => {
     const selection = (rows: unknown[]) => ({ from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn(() => Promise.resolve(rows)) })) })) });
     const transaction = {
       update: vi.fn((table: unknown) => ({ set: vi.fn((values: Record<string, unknown>) => ({ where: vi.fn(() => { writes.push({ table, values }); return Promise.resolve(); }) })) })),
-      insert: vi.fn((table: unknown) => ({ values: vi.fn((values: Record<string, unknown>) => ({ onDuplicateKeyUpdate: vi.fn(() => { writes.push({ table, values }); return Promise.resolve(); }) })) })),
+      insert: vi.fn((table: unknown) => ({ values: vi.fn((values: Record<string, unknown>) => ({ onConflictDoUpdate: vi.fn(() => { writes.push({ table, values }); return Promise.resolve(); }) })) })),
     };
     const db = {
       select: vi.fn()

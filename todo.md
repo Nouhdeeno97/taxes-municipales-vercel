@@ -177,3 +177,6 @@
 - [x] Réserver les modifications futures au dépôt GitHub taxes-municipales-vercel et ne plus modifier le dépôt principal taxes-municipales-FINAL.
 - [x] Adapter exclusivement taxes-municipales-vercel à l’hébergement Vercel : architecture serverless, configuration de build, variables d’environnement, documentation de déploiement et contrôles automatisés.
 - [x] Documenter sans secret la provenance de la base MySQL actuelle et la liste des variables nécessaires à la configuration Vercel.
+- [x] Migrer taxes-municipales-vercel de MySQL/TiDB vers PostgreSQL Supabase : Drizzle, schéma, migrations, requêtes et transactions compatibles, sans perdre les fonctions métier existantes.
+- [x] Retirer toute dépendance obligatoire aux services Manus : sessions/authentification indépendante, stockage Supabase Storage pour les logos et fichiers, variables Vercel/Supabase sans secret dans Git.
+- [x] Valider l’architecture autonome Vercel + Supabase par tests, typage, compilation et documentation de migration/démonstration.

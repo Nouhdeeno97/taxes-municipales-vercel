@@ -15,7 +15,7 @@
   ],
   "rewrites": [
     {
-      "source": "/:path((?!api/|manus-storage/).*)",
+      "source": "/:path((?!api/).*)",
       "destination": "/index.html"
     }
   ]

@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { appRouter } from "./routers";
-import { COOKIE_NAME } from "../shared/const";
 import type { TrpcContext } from "./_core/context";
 import { LOCAL_COOKIE } from "./_core/localAccess";
 import { TESTER_SESSION_COOKIE } from "./_core/testerAccess";
@@ -44,15 +43,15 @@ function createAuthContext(): { ctx: TrpcContext; clearedCookies: CookieCall[] }
 }
 
 describe("auth.logout", () => {
-  it("révoque les cookies de session Manus, locale et temporaire", async () => {
+  it("révoque les cookies de session locale et temporaire", async () => {
     const { ctx, clearedCookies } = createAuthContext();
     const caller = appRouter.createCaller(ctx);
 
     const result = await caller.auth.logout();
 
     expect(result).toEqual({ success: true });
-    expect(clearedCookies.map(cookie => cookie.name)).toEqual(expect.arrayContaining([COOKIE_NAME, LOCAL_COOKIE, TESTER_SESSION_COOKIE]));
-    expect(clearedCookies).toHaveLength(3);
+    expect(clearedCookies.map(cookie => cookie.name)).toEqual(expect.arrayContaining([LOCAL_COOKIE, TESTER_SESSION_COOKIE]));
+    expect(clearedCookies).toHaveLength(2);
     for (const cookie of clearedCookies) expect(cookie.options).toMatchObject({ maxAge: -1, secure: true, sameSite: "none", httpOnly: true, path: "/" });
   });
 });
