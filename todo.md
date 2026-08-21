@@ -184,3 +184,5 @@
 - [ ] Préparer et charger un jeu de données fictives clairement libellé pour démontrer les parcours municipaux sans donnée réelle.
 - [ ] Documenter et valider la connexion Vercel à la base Supabase de démonstration sans exposer aucun secret.
 - [x] Corriger la migration PostgreSQL Supabase afin qu’elle crée tous les enums, tables et contraintes dans l’ordre nécessaire sur une base vide.
+- [x] Préparer un script Supabase idempotent de données strictement fictives couvrant le parcours municipal de démonstration et un premier administrateur local sans mot de passe dans Git.
+- [ ] Valider, versionner et documenter l’exécution du script Supabase de démonstration, avec identifiants administrateur communiqués exclusivement hors Git.
