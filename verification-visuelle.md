@@ -361,7 +361,7 @@ Les registres de la plateforme ont été adaptés pour éviter le chargement exh
 | Reçus | L’action « Consulter » ouvre une fenêtre dédiée contenant la pièce, son aperçu et son historique d’impression. | Le registre reste stable même avec un nombre élevé de reçus. |
 | Versements | Les encaissements éligibles sont regroupés par agent avec nombre et montant total non versé ; le registre de supervision est recherché, filtrable par date et paginé. | L’agent sélectionne son groupe, puis le superviseur contrôle référence, agent, attendu, déposé, écart, état, date et supervision. |
 
-L’espace **Base de données** est visible pour le droit `database.maintenance`, réservé aux responsables techniques. Il ouvre la sauvegarde complète gérée par la plateforme et documente la restauration à partir d’un instantané. Les commandes SQL brutes, l’import direct et la purge restent volontairement indisponibles : ils peuvent compromettre les contraintes, migrations, sessions et l’intégrité comptable. Toute future purge exige la définition du périmètre métier et un circuit de double validation ; le journal d’audit est explicitement exclu.
+L’espace **Base de données** est visible pour le droit `database.maintenance`, réservé aux responsables techniques. Il ouvre la sauvegarde complète gérée par la plateforme et documente la restauration à partir d’un instantané. Les commandes SQL brutes, l’import direct et la purge restent volontairement indisponibles : ils peuvent compromettre les contraintes, migrations, sessions et l’intégrité comptable. Toute future purge exige la définition du périmètre métier et l’autorisation du rôle Administrateur technique ; le journal d’audit est explicitement exclu.
 
 Les contrôles interactifs ont confirmé les écrans Activités, Fiscalité, Reçus, Versements et Base de données. La suite finale compte **68 tests réussis sur 25 fichiers**, TypeScript sans erreur et build de production valide.
 
@@ -385,8 +385,16 @@ Conformément à la décision de conserver l’hébergement actuel dans cette ph
 | Point contrôlé | Résultat |
 |---|---|
 | Mode actuel | L’instantané complet sécurisé reste disponible tant que l’application est hébergée dans son environnement actuel. |
-| Préparation future | Le menu explique les quatre étapes : préparer les serveurs municipaux, transférer la configuration, exécuter une migration contrôlée et activer ensuite la maintenance SQL locale avec double validation. |
+| Préparation future | Le menu explique les quatre étapes : préparer les serveurs municipaux, transférer la configuration, exécuter une migration contrôlée et attribuer ensuite l’habilitation de purge au seul rôle Administrateur technique. |
 | Protections | L’import, la restauration et la purge ne sont pas activés avant la migration ; le journal d’audit reste exclu de toute purge. |
 | Documentation | Le fichier `GUIDE_DEPLOIEMENT_MUNICIPAL.md` détaille prérequis, responsabilités, déroulement de migration et contrôles attendus. |
 
 La vérification visuelle authentifiée confirme l’accès restreint au droit `database.maintenance`, la lisibilité de la distinction entre mode actuel et cible municipale, ainsi que l’absence d’action destructive. Les contrôles techniques maintiennent **70 tests réussis sur 26 fichiers**, TypeScript sans erreur et build de production valide.
+
+## Habilitation unique de purge — 21 août 2026
+
+La mairie a confirmé que l’autorisation d’une future purge sera attribuée au seul rôle **Administrateur technique**, réservé aux responsables habilités. L’espace Base de données et le guide de déploiement municipal ont été alignés : aucune action de purge, d’import ou de restauration SQL n’est disponible tant que le serveur municipal n’existe pas et que le périmètre opérationnel n’est pas arrêté.
+
+> Le journal d’audit restera exclu de toute purge. Lorsque la migration vers le serveur municipal sera réalisée, seul l’Administrateur technique pourra autoriser cette opération dans le périmètre validé.
+
+La vérification visuelle montre explicitement cette règle dans le panneau « Purge et restauration futures » et dans la quatrième étape de préparation. La suite de validation demeure à **70 tests réussis sur 26 fichiers**, avec TypeScript et build de production valides.

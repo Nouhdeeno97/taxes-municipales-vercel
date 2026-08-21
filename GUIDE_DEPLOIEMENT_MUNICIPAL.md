@@ -14,7 +14,7 @@ La plateforme reste actuellement exploitée dans son environnement géré. Ce do
 | Base de données | Base rattachée à l’environnement géré. | Base relationnelle administrée par la mairie. |
 | Sauvegarde | Instantané complet de l’environnement actuel. | Export SQL et politique de sauvegarde pilotés par la mairie. |
 | Restauration | Procédure de restauration de l’environnement actuel. | Import SQL contrôlé dans la base municipale, après validation. |
-| Purge | Désactivée. | Désactivée jusqu’à l’approbation du périmètre et de deux validateurs. |
+| Purge | Désactivée. | Désactivée jusqu’à l’approbation du périmètre et à l’habilitation du seul rôle Administrateur technique. |
 
 ## Prérequis techniques municipaux
 
@@ -26,7 +26,7 @@ La mairie doit désigner un responsable de l’infrastructure et fournir un serv
 | Base relationnelle | Base vide dédiée, accès réseau restreint au serveur applicatif, stratégie de sauvegarde locale définie. |
 | Secrets | Nouvelles valeurs de connexion, de session et d’authentification conservées hors du dépôt de code. |
 | Stockage de sauvegarde | Emplacement municipal chiffré, soumis à une rétention et à des contrôles d’accès. |
-| Responsables | Un administrateur technique et un second valideur désignés par la mairie. |
+| Responsables | Un Administrateur technique habilité à autoriser toute future purge ; les contrôles de restauration suivent une procédure distincte de la mairie. |
 
 ## Déroulement de migration proposé
 
@@ -44,8 +44,8 @@ Après migration, le module de maintenance pourra s’appuyer sur le compte de m
 | Télécharger | Réserver l’accès à l’administrateur technique et journaliser l’identité, la date et l’empreinte du fichier. |
 | Importer | Vérifier le fichier, arrêter les écritures, créer une sauvegarde préalable et obtenir deux validations. |
 | Restaurer | Contrôler la version du schéma, restaurer dans la fenêtre de maintenance, puis vérifier les registres et l’audit. |
-| Purger | Conserver le journal d’audit ; exiger un périmètre signé et deux validations. |
+| Purger | Conserver le journal d’audit ; exiger un périmètre signé et l’autorisation du seul rôle Administrateur technique. |
 
 ## Éléments à confirmer par la mairie
 
-La mairie doit encore communiquer l’environnement cible, le responsable technique, le second valideur de restauration et le périmètre de données autorisé pour une éventuelle purge. Tant que ces éléments ne sont pas confirmés, l’application conserve son mode de maintenance protecteur actuel.
+La mairie doit encore communiquer l’environnement cible, le responsable technique et le périmètre de données autorisé pour une éventuelle purge. Tant que ces éléments ne sont pas confirmés, l’application conserve son mode de maintenance protecteur actuel.

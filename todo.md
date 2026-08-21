@@ -164,7 +164,9 @@
 - [x] Regrouper les encaissements éligibles au versement par agent, avec nombre et montant non versés, recherche par agent et date, puis afficher le registre de versements avec les colonnes de contrôle et supervision demandées.
 - [x] Ajouter un menu « Base de données » réservé au droit Administrateur technique, avec accès à la sauvegarde complète gérée, procédure de restauration contrôlée et exclusion explicite du journal d’audit de toute purge éventuelle.
 - [x] Couvrir les nouvelles paginations, recherches, fenêtres de reçu, regroupements de versement et protections de maintenance par tests automatisés, contrôles visuels et aide contextualisée.
-- [ ] Convenir avec la mairie du périmètre métier et du circuit de double validation requis avant d’activer toute purge irréversible ; l’import SQL direct reste exclu au profit de la restauration complète gérée par la plateforme.
+- [ ] Définir avec la mairie le périmètre métier d’une future purge irréversible ; son autorisation est désormais réservée au seul rôle Administrateur technique et reste indisponible avant la migration vers le serveur municipal.
+- [x] Consigner que le rôle Administrateur technique est l’unique rôle habilité à autoriser toute future purge, à réserver aux responsables habilités.
 - [x] Faire utiliser aux aperçus, impressions et réimpressions de reçus l’identité municipale actuellement configurée : nom de la mairie, nom de plateforme et logo courant.
 - [ ] Migrer vers une base et un serveur directement administrés par la mairie avant d’activer un export SQL, un import et une purge exécutés exclusivement hors de l’infrastructure gérée, avec préservation de l’audit et protections anti-erreur.
 - [x] Préparer la documentation et les contrôles de configuration nécessaires pour transférer ultérieurement la maintenance SQL vers une infrastructure administrée par la mairie, sans modifier le fonctionnement de l’hébergement actuel.
+- [x] Consigner le report de l’essai OAuth avec un second compte Manus et de la coupure réseau réelle, faute de second compte disponible et d’appareil cible de recette pour cette phase.
