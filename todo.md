@@ -171,3 +171,5 @@
 - [x] Préparer la documentation et les contrôles de configuration nécessaires pour transférer ultérieurement la maintenance SQL vers une infrastructure administrée par la mairie, sans modifier le fonctionnement de l’hébergement actuel.
 - [x] Consigner le report de l’essai OAuth avec un second compte Manus et de la coupure réseau réelle, faute de second compte disponible et d’appareil cible de recette pour cette phase.
 - [x] Renforcer les tests automatisés des commandes différées hors connexion et de leurs conflits pour toutes les familles de formulaires compatibles, en distinguant explicitement les recettes matérielles reportées.
+- [ ] Synchroniser entièrement le dépôt GitHub connecté avec la version applicative la plus récente, sans écraser les modifications distantes non fusionnées.
+- [ ] Produire un guide Word complet de déploiement local, Vercel, hébergement mutualisé, sous-domaine et serveur dédié, incluant les prérequis, variables, base de données, sécurité, commandes et procédures de retour arrière.
