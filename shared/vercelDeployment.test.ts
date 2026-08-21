@@ -12,7 +12,7 @@ describe("préparation Vercel", () => {
     expect(config.outputDirectory).toBe("public");
     expect(config.functions).toEqual({
       "api/[...path].ts": {
-        includeFiles: "serverless/municipal-app.mjs",
+        includeFiles: "serverless/municipal-app.cjs",
       },
     });
     expect(config.rewrites).toEqual([
@@ -30,7 +30,7 @@ describe("préparation Vercel", () => {
 
     expect(entrypoint).toContain("export default app");
     expect(entrypoint).not.toMatch(/^\s*app\.listen\s*\(/m);
-    expect(vercelFunction).toContain('const modulePath = "../serverless/municipal-app.mjs"');
+    expect(vercelFunction).toContain('const modulePath = "../serverless/municipal-app.cjs"');
     expect(vercelFunction).toContain("await import(modulePath)");
     expect(vercelFunction).toContain('requestPathname(request) === "/api/health"');
     expect(vercelFunction).toContain("sendHealth(response)");
@@ -38,7 +38,9 @@ describe("préparation Vercel", () => {
     expect(vercelFunction).not.toMatch(/^\s*app\.listen\s*\(/m);
 
     expect(packageJson.scripts["build:vercel:api"]).toContain("--bundle");
-    expect(packageJson.scripts["build:vercel:api"]).toContain("serverless/municipal-app.mjs");
+    expect(packageJson.scripts["build:vercel:api"]).toContain("--format=cjs");
+    expect(packageJson.scripts["build:vercel:api"]).toContain("serverless/municipal-app.cjs");
+    expect(packageJson.scripts["verify:vercel-bundle"]).toContain("scripts/verify-vercel-bundle.mjs");
   });
 
   it("déclare une cible PostgreSQL Supabase sans dépendance Manus obligatoire", () => {

@@ -4,7 +4,7 @@
   "outputDirectory": "public",
   "functions": {
     "api/[...path].ts": {
-      "includeFiles": "serverless/municipal-app.mjs"
+      "includeFiles": "serverless/municipal-app.cjs"
     }
   },
   "headers": [

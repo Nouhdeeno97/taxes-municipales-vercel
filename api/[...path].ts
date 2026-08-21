@@ -9,14 +9,20 @@ function requestPathname(request: IncomingMessage) {
 }
 
 async function loadMunicipalApp(): Promise<NodeHandler> {
-  // Lors du build Vercel, le backend est regroupé en un module ESM unique placé
-  // dans serverless/. La fonction ne dépend ainsi plus des sources TypeScript
-  // server/ absentes du bundle généré dans /var/task.
+  // Lors du build Vercel, le backend est regroupé dans serverless/ au format
+  // CommonJS. Express et plusieurs de ses dépendances utilisent require(), ce
+  // qui évite l’échec « Dynamic require of path is not supported » d’un bundle
+  // ESM sur le runtime Node.js serverless.
   if (process.env.VERCEL) {
-    const modulePath = "../serverless/municipal-app.mjs";
-    const { createMunicipalApp } = (await import(modulePath)) as {
+    const modulePath = "../serverless/municipal-app.cjs";
+    const bundledModule = (await import(modulePath)) as {
+      default?: { createMunicipalApp?: () => NodeHandler };
       createMunicipalApp: () => NodeHandler;
     };
+    const createMunicipalApp = bundledModule.createMunicipalApp ?? bundledModule.default?.createMunicipalApp;
+    if (typeof createMunicipalApp !== "function") {
+      throw new Error("Le bundle municipal Vercel n’exporte pas createMunicipalApp.");
+    }
     return createMunicipalApp();
   }
 
