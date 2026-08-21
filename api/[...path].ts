@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+// @ts-expect-error Le bundle CommonJS est produit par build:vercel:api avant la vérification et le déploiement.
+import { createMunicipalApp as createMunicipalAppFromBundle } from "../serverless/municipal-app.cjs";
 
 type NodeHandler = (request: IncomingMessage, response: ServerResponse) => void;
 
@@ -11,30 +11,13 @@ function requestPathname(request: IncomingMessage) {
 }
 
 async function loadMunicipalApp(): Promise<NodeHandler> {
-  // Lors du build Vercel, le backend est regroupé dans serverless/ au format
-  // CommonJS. Express et plusieurs de ses dépendances utilisent require(), ce
-  // qui évite l’échec « Dynamic require of path is not supported » d’un bundle
-  // ESM sur le runtime Node.js serverless.
-  if (process.env.VERCEL) {
-    // La même passerelle est embarquée dans api/[...path] et dans
-    // api/trpc/[procedure]. Un chemin relatif serait résolu depuis chacune de
-    // ces fonctions et échouerait depuis le sous-répertoire `api/trpc`.
-    const moduleUrl = pathToFileURL(join(process.cwd(), "serverless", "municipal-app.cjs")).href;
-    const bundledModule = (await import(moduleUrl)) as {
-      default?: { createMunicipalApp?: () => NodeHandler };
-      createMunicipalApp: () => NodeHandler;
-    };
-    const createMunicipalApp = bundledModule.createMunicipalApp ?? bundledModule.default?.createMunicipalApp;
-    if (typeof createMunicipalApp !== "function") {
-      throw new Error("Le bundle municipal Vercel n’exporte pas createMunicipalApp.");
-    }
-    return createMunicipalApp();
+  // L’import statique donne à l’analyseur de dépendances Vercel un lien
+  // explicite vers l’artefact généré pendant build:vercel. Une importation par
+  // URL construite à l’exécution pouvait charger un artefact inclus obsolète.
+  if (typeof createMunicipalAppFromBundle !== "function") {
+    throw new Error("Le bundle municipal Vercel n’exporte pas createMunicipalApp.");
   }
-
-  // Repli réservé aux tests et au développement local : Vercel n’exécute jamais
-  // cette branche, car VERCEL=1 est injectée lors du build et de l’exécution.
-  const { createMunicipalApp } = await import("../server/_core/app.ts");
-  return createMunicipalApp();
+  return createMunicipalAppFromBundle();
 }
 
 function sendHealth(response: ServerResponse) {

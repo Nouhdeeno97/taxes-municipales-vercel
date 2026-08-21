@@ -1,27 +1,18 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+// @ts-expect-error Le bundle CommonJS est produit par build:vercel:api avant la vérification et le déploiement.
+import { createMunicipalApp as createMunicipalAppFromBundle } from "../../serverless/municipal-app.cjs";
 
 type NodeHandler = (request: IncomingMessage, response: ServerResponse) => void;
 
 let municipalAppPromise: Promise<NodeHandler> | undefined;
 
 async function loadMunicipalApp(): Promise<NodeHandler> {
-  if (process.env.VERCEL) {
-    const moduleUrl = pathToFileURL(join(process.cwd(), "serverless", "municipal-app.cjs")).href;
-    const bundledModule = (await import(moduleUrl)) as {
-      default?: { createMunicipalApp?: () => NodeHandler };
-      createMunicipalApp: () => NodeHandler;
-    };
-    const createMunicipalApp = bundledModule.createMunicipalApp ?? bundledModule.default?.createMunicipalApp;
-    if (typeof createMunicipalApp !== "function") {
-      throw new Error("Le bundle municipal Vercel n’exporte pas createMunicipalApp.");
-    }
-    return createMunicipalApp();
+  // La référence est statique afin que Vercel trace et embarque le bundle
+  // construit dans ce même déploiement pour la fonction tRPC dédiée.
+  if (typeof createMunicipalAppFromBundle !== "function") {
+    throw new Error("Le bundle municipal Vercel n’exporte pas createMunicipalApp.");
   }
-
-  const { createMunicipalApp } = await import("../../server/_core/app.ts");
-  return createMunicipalApp();
+  return createMunicipalAppFromBundle();
 }
 
 /**

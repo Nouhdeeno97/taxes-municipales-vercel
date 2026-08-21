@@ -34,16 +34,18 @@ describe("préparation Vercel", () => {
 
     expect(entrypoint).toContain("export default app");
     expect(entrypoint).not.toMatch(/^\s*app\.listen\s*\(/m);
-    expect(vercelFunction).toContain('join(process.cwd(), "serverless", "municipal-app.cjs")');
-    expect(vercelFunction).toContain("pathToFileURL");
-    expect(vercelFunction).toContain("await import(moduleUrl)");
+    expect(vercelFunction).toContain('from "../serverless/municipal-app.cjs"');
+    expect(vercelFunction).toContain("createMunicipalAppFromBundle");
+    expect(vercelFunction).not.toContain("pathToFileURL");
+    expect(vercelFunction).not.toContain("await import(moduleUrl)");
     expect(vercelFunction).toContain('requestPathname(request) === "/api/health"');
     expect(vercelFunction).toContain("sendHealth(response)");
     expect(vercelFunction).toContain("export function forwardMunicipalApi");
     expect(vercelFunction).not.toContain('import { createMunicipalApp } from "../server/_core/app"');
     expect(vercelFunction).not.toMatch(/^\s*app\.listen\s*\(/m);
-    expect(trpcProcedureFunction).toContain('join(process.cwd(), "serverless", "municipal-app.cjs")');
-    expect(trpcProcedureFunction).toContain("await import(moduleUrl)");
+    expect(trpcProcedureFunction).toContain('from "../../serverless/municipal-app.cjs"');
+    expect(trpcProcedureFunction).toContain("createMunicipalAppFromBundle");
+    expect(trpcProcedureFunction).not.toContain("await import(moduleUrl)");
     expect(trpcProcedureFunction).toContain("municipalAppPromise.then");
 
     expect(packageJson.scripts["build:vercel:api"]).toContain("--bundle");
