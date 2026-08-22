@@ -193,11 +193,11 @@
 - [x] Convertir le bundle backend Vercel en CommonJS afin de rendre Express et tRPC compatibles avec le runtime serverless, puis confirmer les deux routes en production.
 - [x] Tracer et corriger la mutation POST tRPC de connexion afin que la fonction Vercel renvoie du JSON tRPC au lieu d’une page HTML 404.
 - [x] Diagnostiquer l’échec PostgreSQL de création d’activité TAXI sur Vercel, aligner les références ou le mapping fautif, puis confirmer une création réelle.
-- [ ] Diagnostiquer l’échec d’insertion `activities` avec les UUID territoriaux réels, identifier la contrainte PostgreSQL et corriger le parcours de création associé.
-- [ ] Vérifier le bundle CommonJS exécuté par les deux fonctions Vercel, rendre la normalisation territoriale MOBILE/CUSTOM déterministe et consigner l’erreur PostgreSQL exacte sans modifier les données de démonstration.
-- [ ] Relever dans les journaux de la révision `mobile-territory-v5` le code, la contrainte et la table PostgreSQL de l’insertion MOBILE en échec, puis appliquer une correction sans altérer le jeu de démonstration.
-- [ ] Identifier la colonne ou contrainte exacte de `activities` qui échoue à l’étape `ACTIVITY_CREATE_ACTIVITY`, puis rectifier le mapping de persistance sans toucher aux données de démonstration.
-- [ ] Supprimer du payload d’insertion MOBILE/CUSTOM les propriétés territoriales résiduelles responsables de `activities_zoneId_zones_id_fk`, et vérifier qu’aucune colonne territoriale n’est transmise à PostgreSQL.
-- [ ] Renseigner explicitement les clés territoriales compatibles pour ZONE, MARCHÉ et EMPLACEMENT, et nullifier celles qui ne le sont pas afin d’éliminer `activities_marketLocationId_market_locations_id_fk`.
-- [ ] Corriger le chargement des rôles, permissions et utilisateurs affectables dans l’espace Rôles et permissions.
-- [ ] Corriger le chargement persistant du Journal d’audit et l’affichage intermittent de la page Paramètres, avec diagnostic des procédures tRPC et des états d’erreur associés.
+- [x] Diagnostiquer l’échec d’insertion `activities` avec les UUID territoriaux réels, identifier la contrainte PostgreSQL et corriger le parcours de création associé.
+- [x] Vérifier le bundle CommonJS exécuté par les deux fonctions Vercel, rendre la normalisation territoriale MOBILE/CUSTOM déterministe et consigner l’erreur PostgreSQL exacte sans modifier les données de démonstration.
+- [x] Relever dans les journaux de la révision `mobile-territory-v5` le code, la contrainte et la table PostgreSQL de l’insertion MOBILE en échec, puis appliquer une correction sans altérer le jeu de démonstration.
+- [x] Identifier la colonne ou contrainte exacte de `activities` qui échoue à l’étape `ACTIVITY_CREATE_ACTIVITY`, puis rectifier le mapping de persistance sans toucher aux données de démonstration.
+- [x] Supprimer du payload d’insertion MOBILE/CUSTOM les propriétés territoriales résiduelles responsables de `activities_zoneId_zones_id_fk`, et vérifier qu’aucune colonne territoriale n’est transmise à PostgreSQL.
+- [x] Renseigner explicitement les clés territoriales compatibles pour ZONE, MARCHÉ et EMPLACEMENT, et nullifier celles qui ne le sont pas afin d’éliminer `activities_marketLocationId_market_locations_id_fk`.
+- [x] Corriger le chargement des rôles, permissions et utilisateurs affectables dans l’espace Rôles et permissions.
+- [x] Corriger le chargement persistant du Journal d’audit et l’affichage intermittent de la page Paramètres, avec diagnostic des procédures tRPC et des états d’erreur associés.
