@@ -11,9 +11,10 @@ describe("résilience des écrans administratifs", () => {
   it("regroupe les référentiels de droits et borne la recherche des utilisateurs affectables", () => {
     expect(routerSource).toContain("overview: protectedProcedure.query");
     expect(routerSource).toContain("assignableUsers: protectedProcedure.input");
-    expect(routerSource).toContain(".limit(50);");
+    expect(routerSource).toContain(".limit(25);");
     expect(rolePageSource).toContain("municipal.administration.overview.useQuery");
     expect(rolePageSource).toContain("municipal.administration.assignableUsers.useQuery");
+    expect(rolePageSource).toContain("Les 25 premiers utilisateurs actifs sont disponibles immédiatement");
   });
 
   it("isole les appels tRPC sans annuler les flux d’authentification", () => {

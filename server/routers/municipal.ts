@@ -837,20 +837,20 @@ export const municipalRouter = router({
       const matrixRows = await db.select({ roleId: rolePermissions.roleId, permissionId: rolePermissions.permissionId }).from(rolePermissions).innerJoin(roles, eq(rolePermissions.roleId, roles.id)).where(or(eq(roles.municipalityId, municipalityId), isNull(roles.municipalityId)));
       return { roles: municipalRoles, permissions: permissionRows, matrix: matrixRows };
     }),
-    assignableUsers: protectedProcedure.input(z.object({ search: z.string().trim().min(2).max(160) })).query(async ({ ctx, input }) => {
+    assignableUsers: protectedProcedure.input(z.object({ search: z.string().trim().max(160).optional() }).optional()).query(async ({ ctx, input }) => {
       requireAdmin(ctx.user);
       const municipalityId = await requireAccess(ctx.user, "administration", "manage");
       const db = await requireDb();
-      const text = `%${input.search.toLowerCase()}%`;
+      const text = input?.search ? `%${input.search.toLowerCase()}%` : undefined;
       return db.select({ id: users.id, name: users.name, email: users.email, localUsername: users.localUsername, archivedAt: users.archivedAt })
         .from(users)
-        .where(and(eq(users.municipalityId, municipalityId), isNull(users.archivedAt), or(
+        .where(and(eq(users.municipalityId, municipalityId), isNull(users.archivedAt), text ? or(
           sql`lower(coalesce(${users.name}, '')) like ${text}`,
           sql`lower(coalesce(${users.email}, '')) like ${text}`,
           sql`lower(coalesce(${users.localUsername}, '')) like ${text}`,
-        )))
+        ) : undefined))
         .orderBy(users.name)
-        .limit(50);
+        .limit(25);
     }),
     users: protectedProcedure.query(async ({ ctx }) => { requireAdmin(ctx.user); const municipalityId = await requireAccess(ctx.user, "administration", "manage"); const db = await requireDb(); return db.select({ id: users.id, name: users.name, email: users.email, localUsername: users.localUsername, role: users.role, isActive: users.isActive, archivedAt: users.archivedAt, lastSignedIn: users.lastSignedIn, loginMethod: users.loginMethod, accessMode: sql<string>`case when ${users.localUsername} is not null then 'LOCAL' when ${users.openId} like 'tester:%' then 'LIEN TEMPORAIRE' else 'COMPTE INTERNE' end`, roles: sql<string>`string_agg(distinct ${roles.label}, ', ')` }).from(users).leftJoin(userRoles, and(eq(userRoles.userId, users.id), isNull(userRoles.expiresAt))).leftJoin(roles, eq(userRoles.roleId, roles.id)).where(eq(users.municipalityId, municipalityId)).groupBy(users.id).orderBy(users.name); }),
     usersPage: protectedProcedure.input(paginatedListInput.extend({ search: z.string().trim().max(160).optional(), status: z.enum(["ALL", "ACTIVE", "INACTIVE", "ARCHIVED"]).default("ALL") })).query(async ({ ctx, input }) => {

@@ -202,3 +202,4 @@
 - [x] Corriger le chargement des rôles, permissions et utilisateurs affectables dans l’espace Rôles et permissions.
 - [x] Corriger le chargement persistant du Journal d’audit et l’affichage intermittent de la page Paramètres, avec diagnostic des procédures tRPC et des états d’erreur associés.
 - [ ] Retirer l’annulation globale des requêtes qui provoque `signal is aborted without reason` à la connexion, puis fiabiliser le chargement de Rôles et permissions sans déconnexion de session.
+- [ ] Rendre immédiatement ouvrable la sélection d’utilisateur lors de l’affectation de rôle, avec une liste initiale bornée et une recherche progressive.

@@ -73066,16 +73066,16 @@ var municipalRouter = router({
       const matrixRows = await db.select({ roleId: rolePermissions.roleId, permissionId: rolePermissions.permissionId }).from(rolePermissions).innerJoin(roles, eq(rolePermissions.roleId, roles.id)).where(or(eq(roles.municipalityId, municipalityId), isNull(roles.municipalityId)));
       return { roles: municipalRoles, permissions: permissionRows, matrix: matrixRows };
     }),
-    assignableUsers: protectedProcedure.input(external_exports.object({ search: external_exports.string().trim().min(2).max(160) })).query(async ({ ctx, input }) => {
+    assignableUsers: protectedProcedure.input(external_exports.object({ search: external_exports.string().trim().max(160).optional() }).optional()).query(async ({ ctx, input }) => {
       requireAdmin(ctx.user);
       const municipalityId = await requireAccess(ctx.user, "administration", "manage");
       const db = await requireDb();
-      const text2 = `%${input.search.toLowerCase()}%`;
-      return db.select({ id: users.id, name: users.name, email: users.email, localUsername: users.localUsername, archivedAt: users.archivedAt }).from(users).where(and(eq(users.municipalityId, municipalityId), isNull(users.archivedAt), or(
+      const text2 = input?.search ? `%${input.search.toLowerCase()}%` : void 0;
+      return db.select({ id: users.id, name: users.name, email: users.email, localUsername: users.localUsername, archivedAt: users.archivedAt }).from(users).where(and(eq(users.municipalityId, municipalityId), isNull(users.archivedAt), text2 ? or(
         sql`lower(coalesce(${users.name}, '')) like ${text2}`,
         sql`lower(coalesce(${users.email}, '')) like ${text2}`,
         sql`lower(coalesce(${users.localUsername}, '')) like ${text2}`
-      ))).orderBy(users.name).limit(50);
+      ) : void 0)).orderBy(users.name).limit(25);
     }),
     users: protectedProcedure.query(async ({ ctx }) => {
       requireAdmin(ctx.user);
