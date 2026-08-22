@@ -32,5 +32,7 @@ describe("intégrité du rapprochement versement-clôture", () => {
     expect(pages).toContain('"Sélectionner tout"');
     expect(pages).toContain('eligiblePayments.data?.map(row => row.payment.id)');
     expect(pages).toContain('eligibleDeposits.data?.map(row => row.deposit.id)');
+    expect(pages).toContain('id="closing-agent-search"');
+    expect(pages).toContain('filteredEligibleAgents');
   });
 });

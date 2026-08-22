@@ -17,7 +17,7 @@ if (typeof createMunicipalApp !== "function") {
   throw new Error("Le bundle Vercel n’exporte pas createMunicipalApp.");
 }
 
-if (buildId !== "closing-deposits-v12") {
+if (buildId !== "closing-agent-search-v13") {
   throw new Error(`Le bundle Vercel ne correspond pas à la révision MOBILE attendue (empreinte reçue : ${String(buildId)}).`);
 }
 
