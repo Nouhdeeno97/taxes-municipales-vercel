@@ -541,6 +541,18 @@ export const dailyClosings = pgTable("daily_closings", {
   updatedAt: updatedAt(),
 }, table => [uniqueIndex("daily_closing_unique").on(table.municipalityId, table.agentId, table.businessDate)]);
 
+/** Versements validés inclus dans une clôture : un versement ne peut être clôturé qu’une seule fois. */
+export const dailyClosingDeposits = pgTable("daily_closing_deposits", {
+  id: uuid().primaryKey(),
+  dailyClosingId: uuid("dailyClosingId").notNull().references(() => dailyClosings.id),
+  depositId: uuid("depositId").notNull().references(() => deposits.id),
+  createdAt: createdAt(),
+}, table => [
+  uniqueIndex("daily_closing_deposit_unique").on(table.dailyClosingId, table.depositId),
+  uniqueIndex("daily_closing_deposit_global_unique").on(table.depositId),
+  index("daily_closing_deposit_closing_idx").on(table.dailyClosingId),
+]);
+
 export const referenceSequences = pgTable("reference_sequences", {
   id: uuid().primaryKey(),
   municipalityId: uuid("municipalityId").notNull().references(() => municipalities.id),

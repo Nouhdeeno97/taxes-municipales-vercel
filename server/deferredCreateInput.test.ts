@@ -27,7 +27,7 @@ describe("contrat des créations différées", () => {
 
   it("accepte seulement des brouillons financiers complets et structurés", () => {
     expect(deferredCreateInput.parse({ ...envelope, command: "DEPOSIT_DRAFT", payload: { paymentIds: ["92000000-0000-4000-8000-000000000093"], depositedAmount: 1200, observation: "Remise en attente" } }).command).toBe("DEPOSIT_DRAFT");
-    expect(deferredCreateInput.parse({ ...envelope, command: "CLOSING_DRAFT", payload: { businessDate: "2026-08-20", expectedAmount: 1200, depositedAmount: 1200 } }).command).toBe("CLOSING_DRAFT");
+    expect(deferredCreateInput.parse({ ...envelope, command: "CLOSING_DRAFT", payload: { businessDate: "2026-08-20", depositIds: ["92000000-0000-4000-8000-000000000093"] } }).command).toBe("CLOSING_DRAFT");
   });
 
   it("refuse une commande inconnue avant toute synchronisation", () => {

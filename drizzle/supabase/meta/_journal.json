@@ -8,6 +8,13 @@
       "when": 1787330438558,
       "tag": "0000_lean_dakota_north",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1787418313208,
+      "tag": "0001_daily_closing_deposits",
+      "breakpoints": true
     }
   ]
 }

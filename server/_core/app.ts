@@ -13,7 +13,7 @@ import { registerTesterAccessRoutes } from "./testerAccess";
  * Il ne contient aucune donnée métier ni aucun secret ; il permet de vérifier
  * qu’une fonction sert bien la révision incluant la normalisation MOBILE.
  */
-export const MUNICIPAL_API_BUILD_ID = "admin-loading-v11";
+export const MUNICIPAL_API_BUILD_ID = "closing-deposits-v12";
 
 /**
  * Construit l’application HTTP sans ouvrir de port.

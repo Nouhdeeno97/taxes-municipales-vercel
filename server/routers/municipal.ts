@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, gte, inArray, isNotNull, isNull, like, lte, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, isNull, like, lt, lte, ne, or, sql } from "drizzle-orm";
 import { createHash, randomUUID } from "crypto";
 import { z } from "zod";
 import {
@@ -10,6 +10,7 @@ import {
   activityTypes,
   auditLogs,
   cashCounts,
+  dailyClosingDeposits,
   dailyClosings,
   depositItems,
   deposits,
@@ -56,6 +57,15 @@ const money = z.number().finite().positive().max(1_000_000_000);
 const moneyValue = (value: number) => value.toFixed(2);
 const reference = (prefix: string) => `${prefix}-${new Date().getFullYear()}-${randomUUID().slice(0, 8).toUpperCase()}`;
 const activityLocationTypeInput = z.enum(["ZONE", "MARKET", "MARKET_LOCATION", "MOBILE", "CUSTOM"]);
+const optionalAgentInput = z.number().int().positive().optional();
+
+function businessDayBounds(value: Date) {
+  const start = new Date(value);
+  start.setUTCHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+  return { start, end };
+}
 
 function activityCreateFailureMetadata(error: unknown) {
   const cause = error && typeof error === "object" && "cause" in error ? (error as { cause?: unknown }).cause ?? error : error;
@@ -783,22 +793,32 @@ export const municipalRouter = router({
       const groups = await db.select({ agentId: paymentTransactions.collectedBy, agentName: users.name, agentUsername: users.localUsername, paymentCount: sql<number>`count(${paymentTransactions.id})`, totalAmount: sql<string>`coalesce(sum(${paymentTransactions.netAmount}), 0)` }).from(paymentTransactions).leftJoin(depositItems, eq(depositItems.paymentTransactionId, paymentTransactions.id)).leftJoin(users, eq(paymentTransactions.collectedBy, users.id)).where(conditions).groupBy(paymentTransactions.collectedBy, users.name, users.localUsername).orderBy(desc(sql`sum(${paymentTransactions.netAmount})`));
       return { rows: groups.slice(page * pageSize, (page + 1) * pageSize).map(group => ({ ...group, paymentCount: Number(group.paymentCount), totalAmount: Number(group.totalAmount) })), total: groups.length, page, pageSize };
     }),
-    eligiblePayments: protectedProcedure.query(async ({ ctx }) => {
+    eligiblePayments: protectedProcedure.input(z.object({ agentId: optionalAgentInput }).optional()).query(async ({ ctx, input }) => {
       const municipalityId = await requireAccess(ctx.user, "deposits", "create"); const db = await requireDb();
+      const agentId = input?.agentId ?? ctx.user.id;
+      if (agentId !== ctx.user.id) requireAdmin(ctx.user);
+      const agent = (await db.select({ id: users.id }).from(users).where(and(eq(users.id, agentId), eq(users.municipalityId, municipalityId), eq(users.isActive, true), isNull(users.archivedAt))).limit(1))[0];
+      if (!agent) throw new TRPCError({ code: "NOT_FOUND", message: "Agent actif introuvable dans cette mairie." });
       return db.select({ payment: paymentTransactions, taxpayer: taxpayers }).from(paymentTransactions)
         .leftJoin(taxpayers, eq(paymentTransactions.taxpayerId, taxpayers.id))
         .leftJoin(depositItems, eq(depositItems.paymentTransactionId, paymentTransactions.id))
-        .where(and(eq(paymentTransactions.municipalityId, municipalityId), eq(paymentTransactions.collectedBy, ctx.user.id), eq(paymentTransactions.status, "VALIDATED"), isNull(depositItems.id)))
+        .where(and(eq(paymentTransactions.municipalityId, municipalityId), eq(paymentTransactions.collectedBy, agentId), eq(paymentTransactions.status, "VALIDATED"), isNull(depositItems.id)))
         .orderBy(desc(paymentTransactions.collectedAt)).limit(100);
     }),
-    declare: protectedProcedure.input(z.object({ paymentIds: z.array(z.string().uuid()).min(1), depositedAmount: money, observation: z.string().trim().max(1000).optional() })).mutation(async ({ ctx, input }) => {
+    declare: protectedProcedure.input(z.object({ paymentIds: z.array(z.string().uuid()).min(1).max(100), depositedAmount: money, observation: z.string().trim().max(1000).optional(), agentId: optionalAgentInput })).mutation(async ({ ctx, input }) => {
       const municipalityId = await requireAccess(ctx.user, "deposits", "create"); const db = await requireDb(); const id = randomUUID();
+      const agentId = input.agentId ?? ctx.user.id;
+      const onBehalfOfAgent = agentId !== ctx.user.id;
+      if (onBehalfOfAgent) requireAdmin(ctx.user);
+      const agent = (await db.select({ id: users.id, name: users.name, localUsername: users.localUsername }).from(users).where(and(eq(users.id, agentId), eq(users.municipalityId, municipalityId), eq(users.isActive, true), isNull(users.archivedAt))).limit(1))[0];
+      if (!agent) throw new TRPCError({ code: "NOT_FOUND", message: "Agent actif introuvable dans cette mairie." });
+      if (onBehalfOfAgent && !input.observation) throw new TRPCError({ code: "BAD_REQUEST", message: "Indiquez une observation expliquant la déclaration administrative au nom de l’agent." });
       const selected = await db.select({ payment: paymentTransactions, depositItemId: depositItems.id }).from(paymentTransactions).leftJoin(depositItems, eq(depositItems.paymentTransactionId, paymentTransactions.id)).where(and(eq(paymentTransactions.municipalityId, municipalityId), inArray(paymentTransactions.id, input.paymentIds)));
       const isUniqueSelection = new Set(input.paymentIds).size === input.paymentIds.length;
-      const ineligible = selected.find(row => !isPaymentEligibleForDeposit({ status: row.payment.status, collectedBy: row.payment.collectedBy, actorId: ctx.user.id, alreadyAssigned: Boolean(row.depositItemId) }));
+      const ineligible = selected.find(row => !isPaymentEligibleForDeposit({ status: row.payment.status, collectedBy: row.payment.collectedBy, actorId: agentId, alreadyAssigned: Boolean(row.depositItemId) }));
       if (!isUniqueSelection || selected.length !== input.paymentIds.length || ineligible) throw new TRPCError({ code: "CONFLICT", message: "Chaque encaissement doit être validé, appartenir à l’agent et ne pas déjà figurer dans un versement." });
       const paymentRows = selected.map(row => row.payment); const expectedAmount = paymentRows.reduce((sum, row) => sum + Number(row.netAmount), 0); const differenceAmount = input.depositedAmount - expectedAmount;
-      await db.transaction(async tx => { await tx.insert(deposits).values({ id, municipalityId, reference: reference("VER"), agentId: ctx.user.id, expectedAmount: moneyValue(expectedAmount), depositedAmount: moneyValue(input.depositedAmount), differenceAmount: moneyValue(differenceAmount), status: "SUBMITTED", submittedAt: new Date(), observation: input.observation }); await tx.insert(depositItems).values(paymentRows.map(payment => ({ depositId: id, paymentTransactionId: payment.id }))); await tx.insert(auditLogs).values({ municipalityId, actorId: ctx.user.id, action: "DECLARE", module: "deposits", entityType: "deposit", entityId: id, afterValue: { paymentIds: input.paymentIds, expectedAmount, depositedAmount: input.depositedAmount } }); });
+      await db.transaction(async tx => { await tx.insert(deposits).values({ id, municipalityId, reference: reference("VER"), agentId, expectedAmount: moneyValue(expectedAmount), depositedAmount: moneyValue(input.depositedAmount), differenceAmount: moneyValue(differenceAmount), status: "SUBMITTED", submittedAt: new Date(), observation: input.observation }); await tx.insert(depositItems).values(paymentRows.map(payment => ({ depositId: id, paymentTransactionId: payment.id }))); await tx.insert(auditLogs).values({ municipalityId, actorId: ctx.user.id, action: onBehalfOfAgent ? "DECLARE_ON_BEHALF" : "DECLARE", module: "deposits", entityType: "deposit", entityId: id, afterValue: { paymentIds: input.paymentIds, expectedAmount, depositedAmount: input.depositedAmount, agentId, agentName: agent.name ?? agent.localUsername ?? `Agent #${agentId}`, declaredBy: ctx.user.id, onBehalfOfAgent } }); });
       return { id, differenceAmount };
     }),
     validate: protectedProcedure.input(z.object({ depositId: z.string().uuid(), countedAmount: money, denominations: z.record(z.string(), z.number().int().min(0)) })).mutation(async ({ ctx, input }) => {
@@ -810,9 +830,38 @@ export const municipalRouter = router({
 
   closings: router({
     list: protectedProcedure.query(async ({ ctx }) => { const municipalityId = await requireAccess(ctx.user, "closings", "read"); const db = await requireDb(); return db.select().from(dailyClosings).where(eq(dailyClosings.municipalityId, municipalityId)).orderBy(desc(dailyClosings.businessDate)).limit(100); }),
-    close: protectedProcedure.input(z.object({ businessDate: z.coerce.date(), expectedAmount: money, depositedAmount: money })).mutation(async ({ ctx, input }) => {
-      const municipalityId = await requireAccess(ctx.user, "closings", "create"); const db = await requireDb(); const id = randomUUID(); const differenceAmount = input.depositedAmount - input.expectedAmount;
-      await db.insert(dailyClosings).values({ id, municipalityId, agentId: ctx.user.id, businessDate: input.businessDate, expectedAmount: moneyValue(input.expectedAmount), depositedAmount: moneyValue(input.depositedAmount), differenceAmount: moneyValue(differenceAmount), status: "SUBMITTED" }); await audit(db, { municipalityId, actorId: ctx.user.id, action: "SUBMIT", module: "closings", entityType: "daily_closing", entityId: id, afterValue: { businessDate: input.businessDate, expectedAmount: input.expectedAmount, depositedAmount: input.depositedAmount } }); return { id, differenceAmount };
+    eligibleAgents: protectedProcedure.input(z.object({ businessDate: z.coerce.date() })).query(async ({ ctx, input }) => {
+      const municipalityId = await requireAccess(ctx.user, "closings", "create"); const db = await requireDb(); const { start, end } = businessDayBounds(input.businessDate);
+      const onlyOwnAgent = ctx.user.role === "admin" ? undefined : eq(deposits.agentId, ctx.user.id);
+      return db.select({ agentId: deposits.agentId, agentName: users.name, agentUsername: users.localUsername, depositCount: sql<number>`count(${deposits.id})`, expectedAmount: sql<string>`coalesce(sum(${deposits.expectedAmount}), 0)`, depositedAmount: sql<string>`coalesce(sum(${deposits.depositedAmount}), 0)` }).from(deposits)
+        .leftJoin(users, eq(deposits.agentId, users.id))
+        .leftJoin(dailyClosingDeposits, eq(dailyClosingDeposits.depositId, deposits.id))
+        .where(and(eq(deposits.municipalityId, municipalityId), eq(deposits.status, "VALIDATED"), gte(deposits.submittedAt, start), lt(deposits.submittedAt, end), isNull(dailyClosingDeposits.id), onlyOwnAgent))
+        .groupBy(deposits.agentId, users.name, users.localUsername)
+        .orderBy(desc(sql`sum(${deposits.depositedAmount})`));
+    }),
+    eligibleDeposits: protectedProcedure.input(z.object({ businessDate: z.coerce.date(), agentId: optionalAgentInput })).query(async ({ ctx, input }) => {
+      const municipalityId = await requireAccess(ctx.user, "closings", "create"); const db = await requireDb(); const agentId = input.agentId ?? ctx.user.id;
+      if (agentId !== ctx.user.id) requireAdmin(ctx.user);
+      const { start, end } = businessDayBounds(input.businessDate);
+      return db.select({ deposit: deposits, agentName: users.name, agentUsername: users.localUsername }).from(deposits)
+        .leftJoin(users, eq(deposits.agentId, users.id))
+        .leftJoin(dailyClosingDeposits, eq(dailyClosingDeposits.depositId, deposits.id))
+        .where(and(eq(deposits.municipalityId, municipalityId), eq(deposits.agentId, agentId), eq(deposits.status, "VALIDATED"), gte(deposits.submittedAt, start), lt(deposits.submittedAt, end), isNull(dailyClosingDeposits.id)))
+        .orderBy(desc(deposits.submittedAt));
+    }),
+    close: protectedProcedure.input(z.object({ businessDate: z.coerce.date(), depositIds: z.array(z.string().uuid()).min(1).max(100), agentId: optionalAgentInput })).mutation(async ({ ctx, input }) => {
+      const municipalityId = await requireAccess(ctx.user, "closings", "create"); const db = await requireDb(); const id = randomUUID(); const agentId = input.agentId ?? ctx.user.id;
+      if (agentId !== ctx.user.id) requireAdmin(ctx.user);
+      const { start, end } = businessDayBounds(input.businessDate); const uniqueSelection = new Set(input.depositIds).size === input.depositIds.length;
+      const selected = await db.select({ deposit: deposits, closingDepositId: dailyClosingDeposits.id }).from(deposits).leftJoin(dailyClosingDeposits, eq(dailyClosingDeposits.depositId, deposits.id)).where(and(eq(deposits.municipalityId, municipalityId), inArray(deposits.id, input.depositIds)));
+      const invalid = selected.find(row => row.deposit.status !== "VALIDATED" || row.deposit.agentId !== agentId || !row.deposit.submittedAt || row.deposit.submittedAt < start || row.deposit.submittedAt >= end || Boolean(row.closingDepositId));
+      if (!uniqueSelection || selected.length !== input.depositIds.length || invalid) throw new TRPCError({ code: "CONFLICT", message: "Chaque versement doit être validé, appartenir à l’agent, correspondre à la date de clôture et ne pas déjà être clôturé." });
+      const existing = (await db.select({ id: dailyClosings.id }).from(dailyClosings).where(and(eq(dailyClosings.municipalityId, municipalityId), eq(dailyClosings.agentId, agentId), eq(dailyClosings.businessDate, start))).limit(1))[0];
+      if (existing) throw new TRPCError({ code: "CONFLICT", message: "Une clôture existe déjà pour cet agent et cette date." });
+      const expectedAmount = selected.reduce((sum, row) => sum + Number(row.deposit.expectedAmount), 0); const depositedAmount = selected.reduce((sum, row) => sum + Number(row.deposit.depositedAmount), 0); const differenceAmount = depositedAmount - expectedAmount;
+      await db.transaction(async tx => { await tx.insert(dailyClosings).values({ id, municipalityId, agentId, businessDate: start, expectedAmount: moneyValue(expectedAmount), depositedAmount: moneyValue(depositedAmount), differenceAmount: moneyValue(differenceAmount), status: "CLOSED", closedBy: ctx.user.id, closedAt: new Date() }); await tx.insert(dailyClosingDeposits).values(input.depositIds.map(depositId => ({ id: randomUUID(), dailyClosingId: id, depositId }))); await tx.insert(auditLogs).values({ municipalityId, actorId: ctx.user.id, action: "CLOSE", module: "closings", entityType: "daily_closing", entityId: id, afterValue: { businessDate: start, agentId, depositIds: input.depositIds, expectedAmount, depositedAmount, differenceAmount } }); });
+      return { id, differenceAmount, expectedAmount, depositedAmount };
     }),
   }),
 
@@ -923,7 +972,7 @@ export const municipalRouter = router({
         ASSIGN_RULE: z.object({ activityId: z.string().uuid(), taxRuleId: z.string().uuid(), startDate: z.coerce.date() }),
         GENERATE_OBLIGATIONS: z.object({ activityId: z.string().uuid(), periodStart: z.coerce.date(), periodEnd: z.coerce.date(), dueDate: z.coerce.date() }),
         DEPOSIT_DRAFT: z.object({ paymentIds: z.array(z.string().uuid()).min(1), depositedAmount: money, observation: z.string().trim().max(1000).optional() }),
-        CLOSING_DRAFT: z.object({ businessDate: z.coerce.date(), expectedAmount: money.nonnegative(), depositedAmount: money.nonnegative() }),
+        CLOSING_DRAFT: z.object({ businessDate: z.coerce.date(), depositIds: z.array(z.string().uuid()).min(1).max(100) }),
         ACTIVITY: z.object({ taxpayerId: z.string().uuid(), activityTypeId: z.string().uuid(), label: z.string().trim().min(2).max(220), locationType: z.enum(["ZONE", "MARKET", "MARKET_LOCATION", "MOBILE", "CUSTOM"]), zoneId: z.string().uuid().optional(), marketId: z.string().uuid().optional(), marketLocationId: z.string().uuid().optional(), address: z.string().trim().max(500).optional(), startedAt: z.coerce.date() }),
       } as const;
       const payload = inputByCommand[input.command].parse(input.payload) as Record<string, any>;
@@ -1000,9 +1049,15 @@ export const municipalRouter = router({
           await tx.insert(auditLogs).values({ municipalityId, actorId: ctx.user.id, action: "DECLARE_OFFLINE", module: "deposits", entityType: "deposit", entityId: input.entityId, afterValue: { paymentIds: payload.paymentIds, expectedAmount, depositedAmount: payload.depositedAmount }, deviceId: input.deviceId });
         } else if (input.command === "CLOSING_DRAFT") {
           await requireAccess(ctx.user, "closings", "create");
-          const differenceAmount = Number(payload.depositedAmount) - Number(payload.expectedAmount);
-          await tx.insert(dailyClosings).values({ id: input.entityId, municipalityId, agentId: ctx.user.id, businessDate: payload.businessDate, expectedAmount: moneyValue(payload.expectedAmount), depositedAmount: moneyValue(payload.depositedAmount), differenceAmount: moneyValue(differenceAmount), status: "SUBMITTED" });
-          await tx.insert(auditLogs).values({ municipalityId, actorId: ctx.user.id, action: "SUBMIT_OFFLINE", module: "closings", entityType: "daily_closing", entityId: input.entityId, afterValue: payload, deviceId: input.deviceId });
+          const { start, end } = businessDayBounds(payload.businessDate); const isUniqueSelection = new Set(payload.depositIds).size === payload.depositIds.length;
+          const selected = await tx.select({ deposit: deposits, closingDepositId: dailyClosingDeposits.id }).from(deposits).leftJoin(dailyClosingDeposits, eq(dailyClosingDeposits.depositId, deposits.id)).where(and(eq(deposits.municipalityId, municipalityId), inArray(deposits.id, payload.depositIds)));
+          const invalid = selected.find(row => row.deposit.status !== "VALIDATED" || row.deposit.agentId !== ctx.user.id || !row.deposit.submittedAt || row.deposit.submittedAt < start || row.deposit.submittedAt >= end || Boolean(row.closingDepositId));
+          const existing = (await tx.select({ id: dailyClosings.id }).from(dailyClosings).where(and(eq(dailyClosings.municipalityId, municipalityId), eq(dailyClosings.agentId, ctx.user.id), eq(dailyClosings.businessDate, start))).limit(1))[0];
+          if (!isUniqueSelection || selected.length !== payload.depositIds.length || invalid || existing) throw new TRPCError({ code: "CONFLICT", message: "Le brouillon de clôture doit être revu : ses versements ne sont plus tous validés, disponibles ou cohérents." });
+          const expectedAmount = selected.reduce((sum, row) => sum + Number(row.deposit.expectedAmount), 0); const depositedAmount = selected.reduce((sum, row) => sum + Number(row.deposit.depositedAmount), 0); const differenceAmount = depositedAmount - expectedAmount;
+          await tx.insert(dailyClosings).values({ id: input.entityId, municipalityId, agentId: ctx.user.id, businessDate: start, expectedAmount: moneyValue(expectedAmount), depositedAmount: moneyValue(depositedAmount), differenceAmount: moneyValue(differenceAmount), status: "CLOSED", closedBy: ctx.user.id, closedAt: new Date() });
+          await tx.insert(dailyClosingDeposits).values((payload.depositIds as string[]).map((depositId: string) => ({ id: randomUUID(), dailyClosingId: input.entityId, depositId })));
+          await tx.insert(auditLogs).values({ municipalityId, actorId: ctx.user.id, action: "CLOSE_OFFLINE", module: "closings", entityType: "daily_closing", entityId: input.entityId, afterValue: { ...payload, expectedAmount, depositedAmount, differenceAmount }, deviceId: input.deviceId });
         } else {
           await requireAccess(ctx.user, "activities", "create");
           if (payload.marketLocationId) await requireTerritoryAccess(ctx.user, "MARKET_LOCATION", payload.marketLocationId);
