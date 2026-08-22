@@ -84,13 +84,6 @@ const trpcClient = trpc.createClient({
       // Les lectures administratives indépendantes ne doivent pas être bloquées
       // par une autre procédure lente dans un même lot serverless.
       maxItems: 1,
-      fetch(input, init) {
-        const timeoutController = new AbortController();
-        const timeout = window.setTimeout(() => timeoutController.abort(), 20_000);
-        const signals = [init?.signal, timeoutController.signal].filter((signal): signal is AbortSignal => Boolean(signal));
-        const signal = signals.length === 1 ? signals[0] : AbortSignal.any(signals);
-        return globalThis.fetch(input, { ...(init ?? {}), credentials: "include", signal }).finally(() => window.clearTimeout(timeout));
-      },
     }),
   ],
 });

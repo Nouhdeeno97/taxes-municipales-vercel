@@ -16,10 +16,10 @@ describe("résilience des écrans administratifs", () => {
     expect(rolePageSource).toContain("municipal.administration.assignableUsers.useQuery");
   });
 
-  it("isole les appels tRPC et les abandonne avant le délai maximal Vercel", () => {
+  it("isole les appels tRPC sans annuler les flux d’authentification", () => {
     expect(mainSource).toContain("maxItems: 1");
-    expect(mainSource).toContain("timeoutController.abort()");
-    expect(mainSource).toContain("20_000");
+    expect(mainSource).not.toContain("timeoutController.abort()");
+    expect(mainSource).not.toContain("AbortSignal.any");
   });
 
   it("stabilise l’entrée du journal et joint son auteur lors du comptage filtré", () => {
