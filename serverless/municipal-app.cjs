@@ -73057,6 +73057,26 @@ var municipalRouter = router({
     })
   }),
   administration: router({
+    overview: protectedProcedure.query(async ({ ctx }) => {
+      requireAdmin(ctx.user);
+      const municipalityId = await requireAccess(ctx.user, "administration", "manage");
+      const db = await requireDb();
+      const municipalRoles = await db.select().from(roles).where(or(eq(roles.municipalityId, municipalityId), isNull(roles.municipalityId))).orderBy(roles.label);
+      const permissionRows = await db.select().from(permissions).orderBy(permissions.module, permissions.action);
+      const matrixRows = await db.select({ roleId: rolePermissions.roleId, permissionId: rolePermissions.permissionId }).from(rolePermissions).innerJoin(roles, eq(rolePermissions.roleId, roles.id)).where(or(eq(roles.municipalityId, municipalityId), isNull(roles.municipalityId)));
+      return { roles: municipalRoles, permissions: permissionRows, matrix: matrixRows };
+    }),
+    assignableUsers: protectedProcedure.input(external_exports.object({ search: external_exports.string().trim().min(2).max(160) })).query(async ({ ctx, input }) => {
+      requireAdmin(ctx.user);
+      const municipalityId = await requireAccess(ctx.user, "administration", "manage");
+      const db = await requireDb();
+      const text2 = `%${input.search.toLowerCase()}%`;
+      return db.select({ id: users.id, name: users.name, email: users.email, localUsername: users.localUsername, archivedAt: users.archivedAt }).from(users).where(and(eq(users.municipalityId, municipalityId), isNull(users.archivedAt), or(
+        sql`lower(coalesce(${users.name}, '')) like ${text2}`,
+        sql`lower(coalesce(${users.email}, '')) like ${text2}`,
+        sql`lower(coalesce(${users.localUsername}, '')) like ${text2}`
+      ))).orderBy(users.name).limit(50);
+    }),
     users: protectedProcedure.query(async ({ ctx }) => {
       requireAdmin(ctx.user);
       const municipalityId = await requireAccess(ctx.user, "administration", "manage");
@@ -73264,7 +73284,7 @@ var municipalRouter = router({
       const text2 = input.search ? `%${input.search.toLowerCase()}%` : void 0;
       const conditions = and(eq(auditLogs.municipalityId, municipalityId), input.module ? eq(auditLogs.module, input.module) : void 0, input.actorId ? eq(auditLogs.actorId, input.actorId) : void 0, input.from ? gte(auditLogs.createdAt, input.from) : void 0, input.to ? lte(auditLogs.createdAt, input.to) : void 0, text2 ? or(sql`lower(${auditLogs.module}) like ${text2}`, sql`lower(${auditLogs.action}) like ${text2}`, sql`lower(${auditLogs.entityType}) like ${text2}`, sql`lower(coalesce(${auditLogs.entityId}, '')) like ${text2}`, sql`lower(coalesce(${users.name}, '')) like ${text2}`, sql`lower(coalesce(${users.localUsername}, '')) like ${text2}`) : void 0);
       const rows = await db.select({ id: auditLogs.id, action: auditLogs.action, module: auditLogs.module, entityType: auditLogs.entityType, entityId: auditLogs.entityId, beforeValue: auditLogs.beforeValue, afterValue: auditLogs.afterValue, createdAt: auditLogs.createdAt, actorId: auditLogs.actorId, actorName: users.name, actorUsername: users.localUsername }).from(auditLogs).leftJoin(users, eq(auditLogs.actorId, users.id)).where(conditions).orderBy(desc(auditLogs.createdAt)).limit(input.pageSize).offset(input.page * input.pageSize);
-      const total = await db.select({ count: sql`count(*)` }).from(auditLogs).where(conditions);
+      const total = await db.select({ count: sql`count(*)` }).from(auditLogs).leftJoin(users, eq(auditLogs.actorId, users.id)).where(conditions);
       return { rows, total: Number(total[0]?.count ?? 0), page: input.page, pageSize: input.pageSize };
     }),
     cancelInvitation: protectedProcedure.input(external_exports.object({ invitationId: external_exports.string().uuid() })).mutation(async ({ ctx, input }) => {
@@ -73562,7 +73582,7 @@ async function createContext(opts) {
 }
 
 // server/_core/app.ts
-var MUNICIPAL_API_BUILD_ID = "mobile-territory-v9";
+var MUNICIPAL_API_BUILD_ID = "admin-loading-v10";
 function createMunicipalApp() {
   const app = (0, import_express.default)();
   app.set("trust proxy", 1);

@@ -54,7 +54,7 @@ export default function PlatformSettingsPage() {
   };
 
   if (settings.isLoading) return <div className="space-y-5"><Skeleton className="h-28 w-full" /><Skeleton className="h-72 w-full" /></div>;
-  if (settings.error) return <Card className="border-red-200"><CardHeader><CardTitle>Paramétrage réservé</CardTitle><CardDescription>{settings.error.message}</CardDescription></CardHeader></Card>;
+  if (settings.error) return <Card className="border-red-200"><CardHeader><CardTitle>Paramétrage réservé</CardTitle><CardDescription>{settings.error.message}</CardDescription></CardHeader><CardContent><Button type="button" variant="outline" onClick={() => settings.refetch()}>Réessayer le chargement</Button></CardContent></Card>;
 
   return <div className="mx-auto max-w-5xl space-y-6">
     <section className="rounded-3xl border border-blue-200 bg-[linear-gradient(130deg,#0b3b86,#0f5cdb_55%,#5da5ff)] px-6 py-7 text-white shadow-[0_18px_42px_rgba(15,92,219,.22)] md:px-8">

@@ -199,3 +199,5 @@
 - [ ] Identifier la colonne ou contrainte exacte de `activities` qui échoue à l’étape `ACTIVITY_CREATE_ACTIVITY`, puis rectifier le mapping de persistance sans toucher aux données de démonstration.
 - [ ] Supprimer du payload d’insertion MOBILE/CUSTOM les propriétés territoriales résiduelles responsables de `activities_zoneId_zones_id_fk`, et vérifier qu’aucune colonne territoriale n’est transmise à PostgreSQL.
 - [ ] Renseigner explicitement les clés territoriales compatibles pour ZONE, MARCHÉ et EMPLACEMENT, et nullifier celles qui ne le sont pas afin d’éliminer `activities_marketLocationId_market_locations_id_fk`.
+- [ ] Corriger le chargement des rôles, permissions et utilisateurs affectables dans l’espace Rôles et permissions.
+- [ ] Corriger le chargement persistant du Journal d’audit et l’affichage intermittent de la page Paramètres, avec diagnostic des procédures tRPC et des états d’erreur associés.

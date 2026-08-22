@@ -31,7 +31,7 @@ export function UserManagementPage() {
   const [page, setPage] = useState(0);
   const roles = trpc.municipal.administration.roles.useQuery();
   const users = trpc.municipal.administration.usersPage.useQuery({ page, pageSize: 25, search: search || undefined, status: statusFilter });
-  const activity = trpc.municipal.administration.auditLog.useQuery({ limit: 500 });
+  const activity = trpc.municipal.administration.auditLog.useQuery({ limit: 50 }, { retry: 1 });
   const [localRoleIds, setLocalRoleIds] = useState<string[]>([]);
   const [testerRoleIds, setTesterRoleIds] = useState<string[]>([]);
   const [resetUserId, setResetUserId] = useState("");
