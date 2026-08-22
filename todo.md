@@ -197,3 +197,4 @@
 - [ ] Vérifier le bundle CommonJS exécuté par les deux fonctions Vercel, rendre la normalisation territoriale MOBILE/CUSTOM déterministe et consigner l’erreur PostgreSQL exacte sans modifier les données de démonstration.
 - [ ] Relever dans les journaux de la révision `mobile-territory-v5` le code, la contrainte et la table PostgreSQL de l’insertion MOBILE en échec, puis appliquer une correction sans altérer le jeu de démonstration.
 - [ ] Identifier la colonne ou contrainte exacte de `activities` qui échoue à l’étape `ACTIVITY_CREATE_ACTIVITY`, puis rectifier le mapping de persistance sans toucher aux données de démonstration.
+- [ ] Supprimer du payload d’insertion MOBILE/CUSTOM les propriétés territoriales résiduelles responsables de `activities_zoneId_zones_id_fk`, et vérifier qu’aucune colonne territoriale n’est transmise à PostgreSQL.
