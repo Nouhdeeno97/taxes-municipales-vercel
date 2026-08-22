@@ -72506,14 +72506,17 @@ var municipalRouter = router({
         });
       } catch (error46) {
         if (error46 instanceof TRPCError) throw error46;
+        const databaseFailure = activityCreateFailureMetadata(error46);
+        const databaseReference = [databaseFailure.code, databaseFailure.constraint, databaseFailure.table].filter((value) => typeof value === "string" && value.length > 0).join("/");
         console.error("[municipal.activities.create] \xC9chec d\u2019insertion", {
           activityId: id,
           locationType: input.locationType,
           territoryKeys: Object.keys(territory),
           failedWrite,
-          database: activityCreateFailureMetadata(error46)
+          database: databaseFailure
         });
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `La cr\xE9ation de l\u2019activit\xE9 a \xE9chou\xE9 \xE0 l\u2019\xE9tape ${failedWrite}. R\xE9f\xE9rence de diagnostic : ACTIVITY_CREATE_${failedWrite.toUpperCase()}.` });
+        const diagnosticReference = `ACTIVITY_CREATE_${failedWrite.toUpperCase()}${databaseReference ? `/${databaseReference}` : ""}`;
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `La cr\xE9ation de l\u2019activit\xE9 a \xE9chou\xE9 \xE0 l\u2019\xE9tape ${failedWrite}. R\xE9f\xE9rence de diagnostic : ${diagnosticReference}.` });
       }
       return { ...payload, initialObligationCount };
     }),
@@ -73552,7 +73555,7 @@ async function createContext(opts) {
 }
 
 // server/_core/app.ts
-var MUNICIPAL_API_BUILD_ID = "mobile-territory-v6";
+var MUNICIPAL_API_BUILD_ID = "mobile-territory-v7";
 function createMunicipalApp() {
   const app = (0, import_express.default)();
   app.set("trust proxy", 1);

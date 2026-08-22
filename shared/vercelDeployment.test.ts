@@ -59,10 +59,11 @@ describe("préparation Vercel", () => {
     expect(packageJson.scripts["build:vercel:api"]).toContain("serverless/municipal-app.cjs");
     expect(packageJson.scripts["verify:vercel-bundle"]).toContain("scripts/verify-vercel-bundle.mjs");
     expect(gitignore).toContain("!serverless/municipal-app.cjs");
-    expect(bundleVerifier).toContain('buildId !== "mobile-territory-v6"');
+    expect(bundleVerifier).toContain('buildId !== "mobile-territory-v7"');
     expect(bundleVerifier).toContain('input.locationType === "MOBILE" || input.locationType === "CUSTOM"');
     expect(bundleVerifier).toContain("territoryKeys: Object.keys(territory)");
     expect(bundleVerifier).toContain("failedWrite");
+    expect(bundleVerifier).toContain("databaseReference");
   });
 
   it("déclare une cible PostgreSQL Supabase sans dépendance Manus obligatoire", () => {

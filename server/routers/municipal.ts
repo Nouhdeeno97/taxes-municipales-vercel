@@ -440,14 +440,19 @@ export const municipalRouter = router({
         });
       } catch (error) {
         if (error instanceof TRPCError) throw error;
+        const databaseFailure = activityCreateFailureMetadata(error);
+        const databaseReference = [databaseFailure.code, databaseFailure.constraint, databaseFailure.table]
+          .filter((value): value is string => typeof value === "string" && value.length > 0)
+          .join("/");
         console.error("[municipal.activities.create] Échec d’insertion", {
           activityId: id,
           locationType: input.locationType,
           territoryKeys: Object.keys(territory),
           failedWrite,
-          database: activityCreateFailureMetadata(error),
+          database: databaseFailure,
         });
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `La création de l’activité a échoué à l’étape ${failedWrite}. Référence de diagnostic : ACTIVITY_CREATE_${failedWrite.toUpperCase()}.` });
+        const diagnosticReference = `ACTIVITY_CREATE_${failedWrite.toUpperCase()}${databaseReference ? `/${databaseReference}` : ""}`;
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `La création de l’activité a échoué à l’étape ${failedWrite}. Référence de diagnostic : ${diagnosticReference}.` });
       }
       return { ...payload, initialObligationCount };
     }),
