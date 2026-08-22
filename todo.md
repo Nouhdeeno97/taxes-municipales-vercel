@@ -206,4 +206,4 @@
 - [x] Relier chaque clôture aux versements validés sélectionnés, calculer ses totaux depuis ces versements et empêcher leur réutilisation dans une seconde clôture.
 - [x] Permettre à un administrateur habilité de déclarer un versement au nom d’un agent, avec justification et traçabilité explicites.
 - [x] Permettre aux agents et administrateurs de sélectionner tous les encaissements éligibles affichés pour préparer un versement.
-- [ ] Ajouter une barre de recherche d’agent dans l’écran Clôtures, adaptée à une liste volumineuse avant la sélection de ses versements validés.
+- [x] Ajouter une barre de recherche d’agent dans l’écran Clôtures, adaptée à une liste volumineuse avant la sélection de ses versements validés.
