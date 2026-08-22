@@ -72470,21 +72470,25 @@ var municipalRouter = router({
       const activityType = await db.select({ id: activityTypes.id }).from(activityTypes).innerJoin(activityCategories, eq(activityTypes.categoryId, activityCategories.id)).where(and(eq(activityTypes.id, input.activityTypeId), eq(activityTypes.isActive, true), eq(activityCategories.isActive, true), eq(activityCategories.municipalityId, municipalityId))).limit(1);
       mustGet(activityType[0], "Le type d\u2019activit\xE9 s\xE9lectionn\xE9 est introuvable ou inactif pour cette mairie.");
       const isTerritoryFreeActivity = input.locationType === "MOBILE" || input.locationType === "CUSTOM";
-      let territory = {};
+      let territory = {
+        zoneId: null,
+        marketId: null,
+        marketLocationId: null
+      };
       if (isTerritoryFreeActivity) {
         territory = { zoneId: null, marketId: null, marketLocationId: null };
       } else if (input.locationType === "ZONE") {
         if (!input.zoneId) throw new TRPCError({ code: "BAD_REQUEST", message: "Une zone est requise pour ce type de localisation." });
         const zone = await db.select({ id: zones.id }).from(zones).innerJoin(sectors, eq(zones.sectorId, sectors.id)).where(and(eq(zones.id, input.zoneId), eq(zones.isActive, true), eq(sectors.isActive, true), eq(sectors.municipalityId, municipalityId))).limit(1);
         const zoneId = mustGet(zone[0], "La zone s\xE9lectionn\xE9e est introuvable ou n\u2019appartient pas \xE0 cette mairie.").id;
-        territory = { zoneId };
+        territory = { zoneId, marketId: null, marketLocationId: null };
         await requireTerritoryAccess(ctx.user, "ZONE", zoneId);
       } else if (input.locationType === "MARKET") {
         if (!input.marketId) throw new TRPCError({ code: "BAD_REQUEST", message: "Un march\xE9 est requis pour ce type de localisation." });
         const market = await db.select({ marketId: markets.id, zoneId: zones.id }).from(markets).innerJoin(zones, eq(markets.zoneId, zones.id)).innerJoin(sectors, eq(zones.sectorId, sectors.id)).where(and(eq(markets.id, input.marketId), eq(markets.isActive, true), eq(zones.isActive, true), eq(sectors.isActive, true), eq(sectors.municipalityId, municipalityId))).limit(1);
         const resolvedMarket = mustGet(market[0], "Le march\xE9 s\xE9lectionn\xE9 est introuvable ou n\u2019appartient pas \xE0 cette mairie.");
         const marketId = resolvedMarket.marketId;
-        territory = { zoneId: resolvedMarket.zoneId, marketId };
+        territory = { zoneId: resolvedMarket.zoneId, marketId, marketLocationId: null };
         await requireTerritoryAccess(ctx.user, "MARKET", marketId);
       } else if (input.locationType === "MARKET_LOCATION") {
         if (!input.marketLocationId) throw new TRPCError({ code: "BAD_REQUEST", message: "Un emplacement de march\xE9 est requis pour ce type de localisation." });
@@ -73433,7 +73437,7 @@ var municipalRouter = router({
           else if (payload.marketId) await requireTerritoryAccess(ctx.user, "MARKET", payload.marketId);
           else if (payload.zoneId) await requireTerritoryAccess(ctx.user, "ZONE", payload.zoneId);
           mustGet((await tx.select({ id: taxpayers.id }).from(taxpayers).where(and(eq(taxpayers.id, payload.taxpayerId), eq(taxpayers.municipalityId, municipalityId), eq(taxpayers.status, "ACTIVE"))).limit(1))[0], "Redevable actif introuvable apr\xE8s synchronisation.");
-          const offlineTerritory = payload.locationType === "MOBILE" || payload.locationType === "CUSTOM" ? { zoneId: null, marketId: null, marketLocationId: null } : { zoneId: payload.zoneId, marketId: payload.marketId, marketLocationId: payload.marketLocationId };
+          const offlineTerritory = payload.locationType === "MOBILE" || payload.locationType === "CUSTOM" ? { zoneId: null, marketId: null, marketLocationId: null } : payload.locationType === "ZONE" ? { zoneId: payload.zoneId ?? null, marketId: null, marketLocationId: null } : payload.locationType === "MARKET" ? { zoneId: payload.zoneId ?? null, marketId: payload.marketId ?? null, marketLocationId: null } : { zoneId: payload.zoneId ?? null, marketId: payload.marketId ?? null, marketLocationId: payload.marketLocationId ?? null };
           await tx.insert(activities).values({ id: input.entityId, municipalityId, reference: reference("ACT"), currentTaxpayerId: payload.taxpayerId, activityTypeId: payload.activityTypeId, label: payload.label, locationType: payload.locationType, ...offlineTerritory, address: payload.address, startedAt: payload.startedAt, createdBy: ctx.user.id });
           await tx.insert(activityOwnerships).values({ id: (0, import_crypto5.randomUUID)(), activityId: input.entityId, taxpayerId: payload.taxpayerId, startDate: payload.startedAt, transferredBy: ctx.user.id });
         }
@@ -73558,7 +73562,7 @@ async function createContext(opts) {
 }
 
 // server/_core/app.ts
-var MUNICIPAL_API_BUILD_ID = "mobile-territory-v8";
+var MUNICIPAL_API_BUILD_ID = "mobile-territory-v9";
 function createMunicipalApp() {
   const app = (0, import_express.default)();
   app.set("trust proxy", 1);

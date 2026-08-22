@@ -17,6 +17,8 @@ describe("intégrité territoriale des activités", () => {
     expect(routerSource).toContain('const isTerritoryFreeActivity = input.locationType === "MOBILE" || input.locationType === "CUSTOM"');
     expect(routerSource).toContain("territory = { zoneId: null, marketId: null, marketLocationId: null }");
     expect(routerSource).toContain("? { zoneId: null, marketId: null, marketLocationId: null }");
+    expect(routerSource).toContain("territory = { zoneId, marketId: null, marketLocationId: null }");
+    expect(routerSource).toContain("territory = { zoneId: resolvedMarket.zoneId, marketId, marketLocationId: null }");
     expect(routerSource).toContain("Une nullification explicite évite que le driver ne réutilise des valeurs territoriales résiduelles.");
   });
 });

@@ -198,3 +198,4 @@
 - [ ] Relever dans les journaux de la révision `mobile-territory-v5` le code, la contrainte et la table PostgreSQL de l’insertion MOBILE en échec, puis appliquer une correction sans altérer le jeu de démonstration.
 - [ ] Identifier la colonne ou contrainte exacte de `activities` qui échoue à l’étape `ACTIVITY_CREATE_ACTIVITY`, puis rectifier le mapping de persistance sans toucher aux données de démonstration.
 - [ ] Supprimer du payload d’insertion MOBILE/CUSTOM les propriétés territoriales résiduelles responsables de `activities_zoneId_zones_id_fk`, et vérifier qu’aucune colonne territoriale n’est transmise à PostgreSQL.
+- [ ] Renseigner explicitement les clés territoriales compatibles pour ZONE, MARCHÉ et EMPLACEMENT, et nullifier celles qui ne le sont pas afin d’éliminer `activities_marketLocationId_market_locations_id_fk`.
