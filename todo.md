@@ -203,6 +203,6 @@
 - [x] Corriger le chargement persistant du Journal d’audit et l’affichage intermittent de la page Paramètres, avec diagnostic des procédures tRPC et des états d’erreur associés.
 - [x] Retirer l’annulation globale des requêtes qui provoque `signal is aborted without reason` à la connexion, puis fiabiliser le chargement de Rôles et permissions sans déconnexion de session.
 - [x] Rendre immédiatement ouvrable la sélection d’utilisateur lors de l’affectation de rôle, avec une liste initiale bornée et une recherche progressive.
-- [ ] Relier chaque clôture aux versements validés sélectionnés, calculer ses totaux depuis ces versements et empêcher leur réutilisation dans une seconde clôture.
-- [ ] Permettre à un administrateur habilité de déclarer un versement au nom d’un agent, avec justification et traçabilité explicites.
-- [ ] Permettre aux agents et administrateurs de sélectionner tous les encaissements éligibles affichés pour préparer un versement.
+- [x] Relier chaque clôture aux versements validés sélectionnés, calculer ses totaux depuis ces versements et empêcher leur réutilisation dans une seconde clôture.
+- [x] Permettre à un administrateur habilité de déclarer un versement au nom d’un agent, avec justification et traçabilité explicites.
+- [x] Permettre aux agents et administrateurs de sélectionner tous les encaissements éligibles affichés pour préparer un versement.
