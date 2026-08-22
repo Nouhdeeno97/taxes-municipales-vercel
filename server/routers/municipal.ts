@@ -428,10 +428,13 @@ export const municipalRouter = router({
       const id = randomUUID();
       const payload = { id, municipalityId, reference: reference("ACT"), currentTaxpayerId: input.taxpayerId, activityTypeId: input.activityTypeId, label: input.label, locationType: input.locationType, ...territory, address: input.address, startedAt: input.startedAt, createdBy: ctx.user.id };
       let initialObligationCount = 0;
+      let failedWrite: "activity" | "ownership" | "audit" = "activity";
       try {
         await db.transaction(async tx => {
           await tx.insert(activities).values(payload);
+          failedWrite = "ownership";
           await tx.insert(activityOwnerships).values({ id: randomUUID(), activityId: id, taxpayerId: input.taxpayerId, startDate: input.startedAt, transferredBy: ctx.user.id });
+          failedWrite = "audit";
           await tx.insert(auditLogs).values({ municipalityId, actorId: ctx.user.id, action: "CREATE", module: "activities", entityType: "activity", entityId: id, afterValue: payload });
           initialObligationCount = 0;
         });
@@ -441,9 +444,10 @@ export const municipalRouter = router({
           activityId: id,
           locationType: input.locationType,
           territoryKeys: Object.keys(territory),
+          failedWrite,
           database: activityCreateFailureMetadata(error),
         });
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "La création de l’activité a échoué. L’incident a été journalisé pour diagnostic." });
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `La création de l’activité a échoué à l’étape ${failedWrite}. Référence de diagnostic : ACTIVITY_CREATE_${failedWrite.toUpperCase()}.` });
       }
       return { ...payload, initialObligationCount };
     }),

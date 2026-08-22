@@ -72494,10 +72494,13 @@ var municipalRouter = router({
       const id = (0, import_crypto5.randomUUID)();
       const payload = { id, municipalityId, reference: reference("ACT"), currentTaxpayerId: input.taxpayerId, activityTypeId: input.activityTypeId, label: input.label, locationType: input.locationType, ...territory, address: input.address, startedAt: input.startedAt, createdBy: ctx.user.id };
       let initialObligationCount = 0;
+      let failedWrite = "activity";
       try {
         await db.transaction(async (tx) => {
           await tx.insert(activities).values(payload);
+          failedWrite = "ownership";
           await tx.insert(activityOwnerships).values({ id: (0, import_crypto5.randomUUID)(), activityId: id, taxpayerId: input.taxpayerId, startDate: input.startedAt, transferredBy: ctx.user.id });
+          failedWrite = "audit";
           await tx.insert(auditLogs).values({ municipalityId, actorId: ctx.user.id, action: "CREATE", module: "activities", entityType: "activity", entityId: id, afterValue: payload });
           initialObligationCount = 0;
         });
@@ -72507,9 +72510,10 @@ var municipalRouter = router({
           activityId: id,
           locationType: input.locationType,
           territoryKeys: Object.keys(territory),
+          failedWrite,
           database: activityCreateFailureMetadata(error46)
         });
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "La cr\xE9ation de l\u2019activit\xE9 a \xE9chou\xE9. L\u2019incident a \xE9t\xE9 journalis\xE9 pour diagnostic." });
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `La cr\xE9ation de l\u2019activit\xE9 a \xE9chou\xE9 \xE0 l\u2019\xE9tape ${failedWrite}. R\xE9f\xE9rence de diagnostic : ACTIVITY_CREATE_${failedWrite.toUpperCase()}.` });
       }
       return { ...payload, initialObligationCount };
     }),
@@ -73548,7 +73552,7 @@ async function createContext(opts) {
 }
 
 // server/_core/app.ts
-var MUNICIPAL_API_BUILD_ID = "mobile-territory-v5";
+var MUNICIPAL_API_BUILD_ID = "mobile-territory-v6";
 function createMunicipalApp() {
   const app = (0, import_express.default)();
   app.set("trust proxy", 1);

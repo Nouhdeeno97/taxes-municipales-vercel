@@ -17,14 +17,14 @@ if (typeof createMunicipalApp !== "function") {
   throw new Error("Le bundle Vercel n’exporte pas createMunicipalApp.");
 }
 
-if (buildId !== "mobile-territory-v5") {
+if (buildId !== "mobile-territory-v6") {
   throw new Error(`Le bundle Vercel ne correspond pas à la révision MOBILE attendue (empreinte reçue : ${String(buildId)}).`);
 }
 
 const bundleContent = readFileSync(bundlePath, "utf8");
 const mobileTerritoryGuard = 'input.locationType === "MOBILE" || input.locationType === "CUSTOM"';
 
-if (!bundleContent.includes(mobileTerritoryGuard) || !bundleContent.includes("territoryKeys: Object.keys(territory)")) {
+if (!bundleContent.includes(mobileTerritoryGuard) || !bundleContent.includes("territoryKeys: Object.keys(territory)") || !bundleContent.includes("failedWrite")) {
   throw new Error("Le bundle Vercel ne contient pas la normalisation MOBILE/CUSTOM et son diagnostic d’insertion attendus.");
 }
 
